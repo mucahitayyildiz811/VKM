@@ -127,6 +127,55 @@ namespace VKM.App
         private void ScanStop_Click(object sender, RoutedEventArgs e)
         {
             if (_scan != null) _scan.Stopping = true;
+            _refreshCancel = true;
+        }
+
+        // ---------------- Refresh (pending temizle, kapasite aynı) ----------------
+        private bool _refreshing, _refreshCancel;
+        private void DoRefresh_Click(object sender, RoutedEventArgs e)
+        {
+            if (_refreshing || _scan != null) return;
+            if (DiskCombo.SelectedItem is not DiskInfo d) { MessageBox.Show("Önce bir disk seç."); return; }
+
+            var r = MessageBox.Show(
+                "REFRESH — " + d.Model + "  (" + d.SizeText + ")\n\n" +
+                "Diskin her sektörü AYNI veriyle yeniden yazılacak (VERİ KAYBI YOK). " +
+                "Zayıf/bekleyen sektörler düzelir, kapasite aynı kalır.\n\n" +
+                "• Yönetici gerekir.\n" +
+                "• Kullanımdaki/bağlı bölgeler atlanabilir — en iyi sonuç için diski Disk Yönetimi'nden ÇEVRİMDIŞI yap.\n" +
+                "• Doğru diski seçtiğinden emin ol.\n\n" +
+                "Devam edilsin mi?",
+                "Refresh", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (r != MessageBoxResult.Yes) return;
+
+            _refreshing = true; _refreshCancel = false;
+            if (ScanBtn != null) ScanBtn.IsEnabled = false;
+            RefreshSurfBtn.IsEnabled = false; ScanStopBtn.IsEnabled = true;
+            if (RecoBorder != null) RecoBorder.Visibility = Visibility.Collapsed;
+
+            string dev = d.DeviceId; long total = (long)d.SizeBytes; int sector = d.BytesPerSector <= 0 ? 512 : d.BytesPerSector;
+            Task.Run(() =>
+            {
+                try
+                {
+                    DiskRepair.Refresh(dev, total, sector,
+                        (w, f, done, blocks) => Dispatcher.BeginInvoke(() =>
+                        {
+                            double pct = blocks > 0 ? done / (double)blocks * 100 : 0;
+                            ScanStat.Text = "Refresh %" + pct.ToString("0.0") + "   yazıldı " + w.ToString("N0") + "   atlandı " + f.ToString("N0");
+                        }),
+                        () => _refreshCancel);
+                }
+                catch (Exception ex) { Dispatcher.BeginInvoke(() => MessageBox.Show("Refresh hatası: " + ex.Message)); }
+                Dispatcher.BeginInvoke(() =>
+                {
+                    _refreshing = false;
+                    RefreshSurfBtn.IsEnabled = true;
+                    if (ScanBtn != null) ScanBtn.IsEnabled = true;
+                    ScanStopBtn.IsEnabled = false;
+                    ScanStat.Text += _refreshCancel ? "  — durduruldu" : "  — bitti";
+                });
+            });
         }
 
         private void PaintSurf()

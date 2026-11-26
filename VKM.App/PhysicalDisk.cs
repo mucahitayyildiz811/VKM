@@ -9,6 +9,7 @@ namespace VKM.App
     internal static class PhysicalDisk
     {
         const uint GENERIC_READ = 0x80000000;
+        const uint GENERIC_WRITE = 0x40000000;
         const uint FILE_SHARE_READ = 0x1;
         const uint FILE_SHARE_WRITE = 0x2;
         const uint OPEN_EXISTING = 3;
@@ -39,6 +40,23 @@ namespace VKM.App
             // Zayıf diskte bad-sektörü atla+say: önce retry, üstünde hizalama
             var retry = new RetryStream(baseStream, sector <= 0 ? 512 : sector, 3);
             return new AligningStream(retry, length, sector);
+        }
+
+        // DİKKAT: diske YAZMA için açar (Refresh/HPA gibi onaylı işlemler için). Ham FileStream döner.
+        public static FileStream OpenReadWrite(string deviceId)
+        {
+            var handle = CreateFileW(
+                deviceId, GENERIC_READ | GENERIC_WRITE,
+                FILE_SHARE_READ | FILE_SHARE_WRITE,
+                IntPtr.Zero, OPEN_EXISTING, 0, IntPtr.Zero);
+
+            if (handle.IsInvalid)
+            {
+                int err = Marshal.GetLastWin32Error();
+                handle.Dispose();
+                throw new IOException("Disk yazma için açılamadı (yönetici gerekir, disk kullanımda olabilir). Hata kodu: " + err);
+            }
+            return new FileStream(handle, FileAccess.ReadWrite);
         }
     }
 }

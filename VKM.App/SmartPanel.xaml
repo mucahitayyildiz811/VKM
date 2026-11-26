@@ -108,6 +108,9 @@
                                     Background="{DynamicResource BrAccent}" Foreground="White" BorderThickness="0" FontWeight="SemiBold"/>
                             <Button x:Name="ScanStopBtn" Content="⏹ Durdur" Click="ScanStop_Click" Height="32" Padding="12,0" Margin="8,0,0,0" IsEnabled="False" Cursor="Hand"
                                     Background="{DynamicResource BrBtn}" Foreground="{DynamicResource BrText}" BorderBrush="{DynamicResource BrLine}" BorderThickness="1"/>
+                            <Button x:Name="RefreshSurfBtn" Content="♻ Refresh" Click="DoRefresh_Click" Height="32" Padding="12,0" Margin="8,0,0,0" Cursor="Hand"
+                                    Background="{DynamicResource BrBtn}" Foreground="{DynamicResource BrText}" BorderBrush="{DynamicResource BrLine}" BorderThickness="1"
+                                    ToolTip="Her sektörü aynı veriyle yeniden yazar — zayıf/bekleyen sektörleri düzeltir, kapasite aynı (veri kaybı yok)"/>
                             <Border Width="1" Background="{DynamicResource BrLine}" Margin="12,2"/>
                             <Border Width="11" Height="11" CornerRadius="2" Background="{DynamicResource BrOk}" VerticalAlignment="Center"/>
                             <TextBlock Text="iyi" Margin="4,0,12,0" VerticalAlignment="Center" Foreground="{DynamicResource BrDim}" FontSize="12"/>
