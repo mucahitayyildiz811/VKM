@@ -79,6 +79,7 @@ namespace VKM.App
             _scan = null;
             if (ScanBtn != null) { ScanBtn.IsEnabled = true; ScanStopBtn.IsEnabled = false; }
             if (ScanStat != null) ScanStat.Text = "";
+            if (RecoBorder != null) RecoBorder.Visibility = Visibility.Collapsed;
             _bmp = null; _bw = _bh = 0;
             if (SurfMap != null) SurfMap.Source = null;
         }
@@ -92,6 +93,7 @@ namespace VKM.App
             string dev = d.DeviceId;
             _scan = new SurfaceScan(() => PhysicalDisk.OpenReadOnly(dev, total, sector), total, sector);
 
+            if (RecoBorder != null) RecoBorder.Visibility = Visibility.Collapsed;
             ScanBtn.IsEnabled = false; ScanStopBtn.IsEnabled = true;
             _timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
             _timer.Tick += (_, _) => PaintSurf();
@@ -151,8 +153,47 @@ namespace VKM.App
             {
                 _timer?.Stop();
                 ScanBtn.IsEnabled = true; ScanStopBtn.IsEnabled = false;
+                var done = _scan;
                 _scan = null;
+                if (!done.Stopping) ShowDecision(done);
             }
+        }
+
+        static string Fmt(long b)
+        {
+            double v = b; string[] u = { "B", "KB", "MB", "GB", "TB", "PB" }; int i = 0;
+            while (v >= 1024 && i < u.Length - 1) { v /= 1024; i++; }
+            return v.ToString(v < 10 ? "0.0" : "0") + " " + u[i];
+        }
+
+        // Karar motoru: bad dağılımına göre "ne yapmalı" önerir (uygulama bir sonraki adım, hep onaylı)
+        private void ShowDecision(SurfaceScan sc)
+        {
+            int blocks = sc.Blocks; var st = sc.Status;
+            int firstBad = -1;
+            for (int b = 0; b < blocks; b++) if (st[b] == 3) { firstBad = b; break; }
+            double badPct = blocks > 0 ? sc.BadCount / (double)blocks * 100 : 0;
+
+            string msg;
+            if (sc.BadCount == 0 && sc.SlowCount == 0)
+                msg = "✓ Disk temiz — işlem gerekmez.";
+            else if (sc.BadCount == 0)
+                msg = "Zayıf (yavaş) bölgeler var, bad yok — Refresh ile toparlanabilir. (kapasite aynı)";
+            else
+            {
+                long cutBytes = sc.Total - (long)firstBad * sc.BlockBytes;
+                double lostPct = blocks > 0 ? (blocks - firstBad) / (double)blocks * 100 : 0;
+                if (badPct > 15)
+                    msg = "⚠ Ağır hasar (%" + badPct.ToString("0.0") + " bad). Maskeleme kalıcı olmaz — ÖNCE VERİYİ KURTAR, sonra karar ver.";
+                else if (firstBad > blocks * 0.5 && lostPct <= 20)
+                    msg = "Öneri: bad diskin SONUNDA. Son ~" + Fmt(cutBytes) + " kesilsin (HPA) → kalan %100. Kapasite düşer ama geri alınabilir.";
+                else if (sc.BadCount <= Math.Max(50, (int)(blocks * 0.003)))
+                    msg = "Öneri: az ve dağınık (" + sc.BadCount + " blok). REMAP/gizle (yeniden yaz) → spare'e taşınır, kapasite AYNI kalır.";
+                else
+                    msg = "Bad ORTADA / çok. HPA ~" + Fmt(cutBytes) + " sağlam alanı götürür → önerilmez. Vendor/kafa dışlama gerekir (WD adımı).";
+            }
+            RecoText.Text = msg + "   —   (uygulama/onay sıradaki adımda ekleniyor)";
+            RecoBorder.Visibility = Visibility.Visible;
         }
     }
 }
