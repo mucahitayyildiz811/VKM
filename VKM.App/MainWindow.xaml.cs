@@ -80,6 +80,19 @@ namespace VKM.App
         // Veri Kurtarma içinden RAID/diziler ağacını aç (ayrı modül değil)
         private void RaidView_Click(object sender, RoutedEventArgs e) => OnModule("raid");
 
+        // UFS gibi temiz disk adı: baştaki "ATA", sondaki "SCSI Disk Device / USB Device" vb. gürültüyü at
+        static string CleanModel(string m)
+        {
+            if (string.IsNullOrWhiteSpace(m)) return "Bilinmeyen disk";
+            m = m.Trim();
+            string[] tails = { " SCSI Disk Device", " SATA Disk Device", " USB Device", " ATA Device", " SCSI Disk", " Disk Device" };
+            bool changed = true;
+            while (changed) { changed = false; foreach (var t in tails) if (m.EndsWith(t, StringComparison.OrdinalIgnoreCase)) { m = m[..^t.Length].Trim(); changed = true; } }
+            if (m.StartsWith("ATA ", StringComparison.OrdinalIgnoreCase)) m = m[4..].Trim();
+            while (m.Contains("  ")) m = m.Replace("  ", " ");
+            return m.Length == 0 ? "Bilinmeyen disk" : m;
+        }
+
         private void RefreshButton_Click(object sender, RoutedEventArgs e) => LoadDisks();
 
         // Kurtarma panelini yeni bir sekmede aç (kapatılabilir)
@@ -457,7 +470,7 @@ namespace VKM.App
 
                     var disk = new DiskInfo
                     {
-                        Model = model,
+                        Model = CleanModel(model),
                         Serial = string.IsNullOrEmpty(serial) ? "—" : serial,
                         Interface = string.IsNullOrEmpty(iface) ? "—" : iface,
                         SizeText = FormatSize(size),
