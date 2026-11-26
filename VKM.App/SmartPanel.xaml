@@ -5,94 +5,124 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- araç çubuğu -->
+        <!-- araç çubuğu (disk seçimi — iki sekmede de geçerli) -->
         <Border Grid.Row="0" Background="{DynamicResource BrHead}" BorderBrush="{DynamicResource BrLine}" BorderThickness="0,0,0,1" Padding="14,10">
             <StackPanel Orientation="Horizontal">
-                <TextBlock Text="🩺 SMART" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource BrText}" VerticalAlignment="Center"/>
+                <TextBlock Text="🩺 SMART &amp; Yüzey" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource BrText}" VerticalAlignment="Center"/>
                 <TextBlock Text="Disk:" Margin="20,0,6,0" VerticalAlignment="Center" Foreground="{DynamicResource BrDim}"/>
                 <ComboBox x:Name="DiskCombo" Width="340" Height="30" VerticalContentAlignment="Center" DisplayMemberPath="Model" SelectionChanged="Disk_Changed"/>
                 <Button Content="🔄 Yenile" Click="Refresh_Click" Height="30" Margin="10,0,0,0" Padding="12,0" Cursor="Hand"
                         Background="{DynamicResource BrBtn}" Foreground="{DynamicResource BrText}" BorderBrush="{DynamicResource BrLine}" BorderThickness="1"/>
                 <Button x:Name="ResetBtn" Content="⚠ SMART sıfırla" Click="Reset_Click" Height="30" Margin="10,0,0,0" Padding="12,0" Cursor="Hand"
                         Background="{DynamicResource BrBtn}" Foreground="{DynamicResource BrText}" BorderBrush="{DynamicResource BrLine}" BorderThickness="1"
-                        ToolTip="Üretici-özel — sıradaki adımda aile aile eklenecek"/>
+                        ToolTip="Üretici-özel — WD/Seagate adımında"/>
             </StackPanel>
         </Border>
 
-        <!-- özet -->
-        <Border Grid.Row="1" Background="{DynamicResource BrPanel}" BorderBrush="{DynamicResource BrLine}" BorderThickness="0,0,0,1" Padding="14,10">
-            <TextBlock x:Name="SummaryText" FontFamily="Consolas" FontSize="12.5" Foreground="{DynamicResource BrText}" TextWrapping="Wrap"/>
-        </Border>
+        <TabControl Grid.Row="1" Background="Transparent" BorderThickness="0" Margin="0">
+            <!-- SEKME 1: SMART öznitelikleri -->
+            <TabItem Header="Öznitelikler">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <Border Grid.Row="0" Background="{DynamicResource BrPanel}" BorderBrush="{DynamicResource BrLine}" BorderThickness="0,0,0,1" Padding="14,10">
+                        <TextBlock x:Name="SummaryText" FontFamily="Consolas" FontSize="12.5" Foreground="{DynamicResource BrText}" TextWrapping="Wrap"/>
+                    </Border>
+                    <Border Grid.Row="1" Background="{DynamicResource BrCard2}" BorderBrush="{DynamicResource BrLine}" BorderThickness="0,0,0,1" Padding="14,7">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="110"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="70"/>
+                                <ColumnDefinition Width="70"/>
+                                <ColumnDefinition Width="60"/>
+                                <ColumnDefinition Width="150"/>
+                                <ColumnDefinition Width="90"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="ID" Foreground="{DynamicResource BrDim}" FontWeight="SemiBold" FontSize="12"/>
+                            <TextBlock Grid.Column="1" Text="Öznitelik" Foreground="{DynamicResource BrDim}" FontWeight="SemiBold" FontSize="12"/>
+                            <TextBlock Grid.Column="2" Text="Şu an" Foreground="{DynamicResource BrDim}" FontWeight="SemiBold" FontSize="12"/>
+                            <TextBlock Grid.Column="3" Text="En kötü" Foreground="{DynamicResource BrDim}" FontWeight="SemiBold" FontSize="12"/>
+                            <TextBlock Grid.Column="4" Text="Eşik" Foreground="{DynamicResource BrDim}" FontWeight="SemiBold" FontSize="12"/>
+                            <TextBlock Grid.Column="5" Text="Ham değer" Foreground="{DynamicResource BrDim}" FontWeight="SemiBold" FontSize="12"/>
+                            <TextBlock Grid.Column="6" Text="Durum" Foreground="{DynamicResource BrDim}" FontWeight="SemiBold" FontSize="12"/>
+                        </Grid>
+                    </Border>
+                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl x:Name="AttrList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Padding="14,5" BorderBrush="{DynamicResource BrLine}" BorderThickness="0,0,0,1">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="110"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="70"/>
+                                                <ColumnDefinition Width="70"/>
+                                                <ColumnDefinition Width="60"/>
+                                                <ColumnDefinition Width="150"/>
+                                                <ColumnDefinition Width="90"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="{Binding IdHex}" Foreground="{DynamicResource BrDim}" FontFamily="Consolas" FontSize="12"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding Name}" Foreground="{DynamicResource BrText}" FontSize="12.5" TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Grid.Column="2" Text="{Binding Current}" Foreground="{DynamicResource BrText2}" FontFamily="Consolas" FontSize="12"/>
+                                            <TextBlock Grid.Column="3" Text="{Binding Worst}" Foreground="{DynamicResource BrText2}" FontFamily="Consolas" FontSize="12"/>
+                                            <TextBlock Grid.Column="4" Text="{Binding ThreshText}" Foreground="{DynamicResource BrDim}" FontFamily="Consolas" FontSize="12"/>
+                                            <TextBlock Grid.Column="5" Text="{Binding Raw}" Foreground="{DynamicResource BrText}" FontFamily="Consolas" FontSize="12"/>
+                                            <TextBlock Grid.Column="6" Text="{Binding Durum}" FontWeight="SemiBold" FontSize="12">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Foreground" Value="{DynamicResource BrOk}"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Warn}" Value="True">
+                                                                <Setter Property="Foreground" Value="{DynamicResource BrWarn}"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding Fail}" Value="True">
+                                                                <Setter Property="Foreground" Value="{DynamicResource BrBad}"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
+            </TabItem>
 
-        <!-- başlık satırı -->
-        <Border Grid.Row="2" Background="{DynamicResource BrCard2}" BorderBrush="{DynamicResource BrLine}" BorderThickness="0,0,0,1" Padding="14,7">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="110"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="70"/>
-                    <ColumnDefinition Width="70"/>
-                    <ColumnDefinition Width="60"/>
-                    <ColumnDefinition Width="150"/>
-                    <ColumnDefinition Width="90"/>
-                </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="ID" Foreground="{DynamicResource BrDim}" FontWeight="SemiBold" FontSize="12"/>
-                <TextBlock Grid.Column="1" Text="Öznitelik" Foreground="{DynamicResource BrDim}" FontWeight="SemiBold" FontSize="12"/>
-                <TextBlock Grid.Column="2" Text="Şu an" Foreground="{DynamicResource BrDim}" FontWeight="SemiBold" FontSize="12"/>
-                <TextBlock Grid.Column="3" Text="En kötü" Foreground="{DynamicResource BrDim}" FontWeight="SemiBold" FontSize="12"/>
-                <TextBlock Grid.Column="4" Text="Eşik" Foreground="{DynamicResource BrDim}" FontWeight="SemiBold" FontSize="12"/>
-                <TextBlock Grid.Column="5" Text="Ham değer" Foreground="{DynamicResource BrDim}" FontWeight="SemiBold" FontSize="12"/>
-                <TextBlock Grid.Column="6" Text="Durum" Foreground="{DynamicResource BrDim}" FontWeight="SemiBold" FontSize="12"/>
-            </Grid>
-        </Border>
-
-        <!-- satırlar -->
-        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
-            <ItemsControl x:Name="AttrList">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <Border Padding="14,5" BorderBrush="{DynamicResource BrLine}" BorderThickness="0,0,0,1">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="110"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="70"/>
-                                    <ColumnDefinition Width="70"/>
-                                    <ColumnDefinition Width="60"/>
-                                    <ColumnDefinition Width="150"/>
-                                    <ColumnDefinition Width="90"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="{Binding IdHex}" Foreground="{DynamicResource BrDim}" FontFamily="Consolas" FontSize="12"/>
-                                <TextBlock Grid.Column="1" Text="{Binding Name}" Foreground="{DynamicResource BrText}" FontSize="12.5" TextTrimming="CharacterEllipsis"/>
-                                <TextBlock Grid.Column="2" Text="{Binding Current}" Foreground="{DynamicResource BrText2}" FontFamily="Consolas" FontSize="12"/>
-                                <TextBlock Grid.Column="3" Text="{Binding Worst}" Foreground="{DynamicResource BrText2}" FontFamily="Consolas" FontSize="12"/>
-                                <TextBlock Grid.Column="4" Text="{Binding ThreshText}" Foreground="{DynamicResource BrDim}" FontFamily="Consolas" FontSize="12"/>
-                                <TextBlock Grid.Column="5" Text="{Binding Raw}" Foreground="{DynamicResource BrText}" FontFamily="Consolas" FontSize="12"/>
-                                <TextBlock Grid.Column="6" Text="{Binding Durum}" FontWeight="SemiBold" FontSize="12">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Foreground" Value="{DynamicResource BrOk}"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Warn}" Value="True">
-                                                    <Setter Property="Foreground" Value="{DynamicResource BrWarn}"/>
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding Fail}" Value="True">
-                                                    <Setter Property="Foreground" Value="{DynamicResource BrBad}"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-                            </Grid>
-                        </Border>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-        </ScrollViewer>
+            <!-- SEKME 2: Yüzey taraması -->
+            <TabItem Header="Yüzey Tara">
+                <DockPanel Margin="12">
+                    <Border DockPanel.Dock="Top" Background="{DynamicResource BrPanel}" BorderBrush="{DynamicResource BrLine}" BorderThickness="1" CornerRadius="8" Padding="12,8" Margin="0,0,0,10">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Button x:Name="ScanBtn" Content="▶ Yüzey Tara" Click="Scan_Click" Height="32" Padding="14,0" Cursor="Hand"
+                                    Background="{DynamicResource BrAccent}" Foreground="White" BorderThickness="0" FontWeight="SemiBold"/>
+                            <Button x:Name="ScanStopBtn" Content="⏹ Durdur" Click="ScanStop_Click" Height="32" Padding="12,0" Margin="8,0,0,0" IsEnabled="False" Cursor="Hand"
+                                    Background="{DynamicResource BrBtn}" Foreground="{DynamicResource BrText}" BorderBrush="{DynamicResource BrLine}" BorderThickness="1"/>
+                            <Border Width="1" Background="{DynamicResource BrLine}" Margin="12,2"/>
+                            <Border Width="11" Height="11" CornerRadius="2" Background="{DynamicResource BrOk}" VerticalAlignment="Center"/>
+                            <TextBlock Text="iyi" Margin="4,0,12,0" VerticalAlignment="Center" Foreground="{DynamicResource BrDim}" FontSize="12"/>
+                            <Border Width="11" Height="11" CornerRadius="2" Background="{DynamicResource BrWarn}" VerticalAlignment="Center"/>
+                            <TextBlock Text="yavaş" Margin="4,0,12,0" VerticalAlignment="Center" Foreground="{DynamicResource BrDim}" FontSize="12"/>
+                            <Border Width="11" Height="11" CornerRadius="2" Background="{DynamicResource BrBad}" VerticalAlignment="Center"/>
+                            <TextBlock Text="bad" Margin="4,0,12,0" VerticalAlignment="Center" Foreground="{DynamicResource BrDim}" FontSize="12"/>
+                            <TextBlock x:Name="ScanStat" Margin="12,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource BrText}" FontSize="12.5" FontFamily="Consolas"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Background="{DynamicResource BrCard}" BorderBrush="{DynamicResource BrLine}" BorderThickness="1" CornerRadius="8">
+                        <Image x:Name="SurfMap" Stretch="Fill" RenderOptions.BitmapScalingMode="NearestNeighbor" Margin="4"/>
+                    </Border>
+                </DockPanel>
+            </TabItem>
+        </TabControl>
     </Grid>
 </UserControl>
