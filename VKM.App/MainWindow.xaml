@@ -187,6 +187,7 @@
               </Grid>
 
               <local:MssqlPanel x:Name="SqlPanel" Visibility="Collapsed"/>
+              <local:SmartPanel x:Name="SmartPanelCtl" Visibility="Collapsed"/>
               <local:ImagerPanel x:Name="ImagerPanelCtl" Visibility="Collapsed"/>
 
               <Border x:Name="ModuleStub" Background="{DynamicResource BrBg}" Visibility="Collapsed">

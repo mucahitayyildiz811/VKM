@@ -53,6 +53,7 @@ namespace VKM.App
         private void OnChanged(string n) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(n));
 
         public string Model { get; set; } = "";
+        public string Pnp { get; set; } = "";   // SMART eşleşmesi için PNPDeviceID
         public string Serial { get; set; } = "";
         public string Interface { get; set; } = "";
         public string SizeText { get; set; } = "";

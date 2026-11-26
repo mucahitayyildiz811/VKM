@@ -41,6 +41,7 @@ namespace VKM.App
             ModuleBar.AddModule("journal", "🕑", "Adli Bilişim");
             ModuleBar.AddModule("boot", "🩹", "Boot Onarım");
             ModuleBar.AddModule("sql", "🗄", "SQL");
+            ModuleBar.AddModule("smart", "🩺", "SMART");
             ModuleBar.AddModule("imajboot", "▣", "İmaj Boot");
             ModuleBar.AddModule("usb", "🔌", "USB Dongle");
             ModuleBar.ModuleChanged += OnModule;
@@ -344,6 +345,7 @@ namespace VKM.App
         {
             if (ModuleStub == null || VeriKurtarmaPanel == null || CctvPanel == null || SqlPanel == null) return;   // kurulum anında koruma
             if (ImagerPanelCtl != null) ImagerPanelCtl.Visibility = tag == "imajal" ? Visibility.Visible : Visibility.Collapsed;
+            if (SmartPanelCtl != null) SmartPanelCtl.Visibility = tag == "smart" ? Visibility.Visible : Visibility.Collapsed;
             if (tag == "imajal")
             {
                 VeriKurtarmaPanel.Visibility = Visibility.Collapsed;
@@ -377,6 +379,16 @@ namespace VKM.App
                 CctvPanel.Visibility = Visibility.Collapsed;
                 SqlPanel.Visibility = Visibility.Visible;
                 ModuleStub.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            if (tag == "smart")
+            {
+                VeriKurtarmaPanel.Visibility = Visibility.Collapsed;
+                CctvPanel.Visibility = Visibility.Collapsed;
+                SqlPanel.Visibility = Visibility.Collapsed;
+                ModuleStub.Visibility = Visibility.Collapsed;
+                SmartPanelCtl.Init(Disks);
                 return;
             }
 
@@ -471,6 +483,7 @@ namespace VKM.App
                         DeviceId = deviceId,
                         SizeBytes = size,
                         BytesPerSector = bps,
+                        Pnp = pnp,
                     };
 
                     smartMap.TryGetValue(SmartReader.Norm(pnp), out var smart);
