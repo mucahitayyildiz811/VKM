@@ -125,7 +125,7 @@ namespace VKM.App
             int sector = d.BytesPerSector <= 0 ? 512 : d.BytesPerSector;
             string dev = d.DeviceId;
             _scan = new SurfaceScan(() => PhysicalDisk.OpenReadOnly(dev, total, sector), total, sector);
-            Log.Info("Yüzey Tara: " + d.Model + " · harita " + (int)SurfMap.ActualWidth + "x" + (int)SurfMap.ActualHeight +
+            Log.Info("Yüzey Tara: " + d.Model + " · kutu " + (int)SurfBox.ActualWidth + "x" + (int)SurfBox.ActualHeight +
                      " · blok " + (_scan.BlockBytes / 1024 / 1024) + "MB · " + _scan.Blocks.ToString("N0") + " blok");
 
             if (RecoBorder != null) RecoBorder.Visibility = Visibility.Collapsed;
@@ -236,8 +236,8 @@ namespace VKM.App
 
         private void PaintSurf()
         {
-            if (_scan == null || SurfMap == null) return;
-            int W = (int)SurfMap.ActualWidth, H = (int)SurfMap.ActualHeight;
+            if (_scan == null || SurfMap == null || SurfBox == null) return;
+            int W = (int)SurfBox.ActualWidth - 12, H = (int)SurfBox.ActualHeight - 12;   // dıştaki kutudan ölç (Image boşken 0 ölçüyor)
             if (W < CELL || H < CELL) return;
             int cols = W / CELL, rows = H / CELL;
             if (cols < 1 || rows < 1) return;

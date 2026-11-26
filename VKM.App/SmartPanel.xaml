@@ -134,7 +134,7 @@
                             <TextBlock x:Name="RecoText" Foreground="{DynamicResource BrText}" FontSize="13" TextWrapping="Wrap" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Border>
-                    <Border Background="{DynamicResource BrCard}" BorderBrush="{DynamicResource BrLine}" BorderThickness="1" CornerRadius="8">
+                    <Border x:Name="SurfBox" Background="{DynamicResource BrCard}" BorderBrush="{DynamicResource BrLine}" BorderThickness="1" CornerRadius="8">
                         <Image x:Name="SurfMap" Stretch="Fill" RenderOptions.BitmapScalingMode="NearestNeighbor" Margin="4"/>
                     </Border>
                 </DockPanel>
