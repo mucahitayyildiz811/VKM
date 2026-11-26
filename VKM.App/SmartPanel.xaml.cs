@@ -106,7 +106,7 @@ namespace VKM.App
                 "      Bekleyen (197): " + (sd.Pending?.ToString() ?? "-") +
                 "      Düzeltilemez (198): " + (sd.Uncorrectable?.ToString() ?? "-") +
                 "      CRC (199): " + (sd.Crc?.ToString() ?? "-") + "\n" +
-                "🧠 Tanı: " + DiagnoseHealth(sd);
+                "🧠 Tanı: " + DiagnoseHealth(sd, id.HasValue && id.Value.rotation == 1, stB);
         }
 
         static bool IsAdmin()
@@ -123,19 +123,31 @@ namespace VKM.App
         private static ulong RawOf(SmartData sd, int id) { foreach (var a in sd.Attrs) if (a.Id == id) return a.Raw; return 0; }
         private static int CurOf(SmartData sd, int id) { foreach (var a in sd.Attrs) if (a.Id == id) return a.Current; return -1; }
 
-        private static string DiagnoseHealth(SmartData sd)
+        private static string DiagnoseHealth(SmartData sd, bool isSsd, int selfTestByte)
         {
             ulong realloc = sd.Reallocated ?? 0, pending = sd.Pending ?? 0, crc = sd.Crc ?? 0;
             ulong rep187 = RawOf(sd, 187), to188 = RawOf(sd, 188), spinretry = RawOf(sd, 10);
             int wearCur = CurOf(sd, 233); if (wearCur < 0) wearCur = CurOf(sd, 177);
+            int stStatus = selfTestByte >= 0 ? (selfTestByte >> 4) & 0xF : -1;
 
-            if (sd.PredictFailure) return "⚠ PredictFailure — disk 'ölüyorum' diyor. ÖNCE VERİYİ KURTAR, maskeleme çözmez.";
-            if (rep187 > 0 || to188 > 0) return "Düzeltilemez (187)/timeout (188) var — kafa/elektronik bozuluyor. Veriyi kurtar.";
-            if (spinretry > 0) return "Spin retry (10) var — motor/yatak sorunu. Veriyi kurtar.";
-            if (wearCur >= 0 && wearCur <= 15) return "SSD aşınması yüksek — yeni SSD'ye klonla, 'tamir' yok.";
-            if (crc > 0 && realloc == 0 && pending == 0) return "CRC (199) var, bad yok — KABLO/bağlantı sorunu. Kabloyu/portu değiştir, tekrar ölç.";
-            if (pending > 0 && realloc == 0) return "Bekleyen sektör (197) var, realloc 0 — Refresh (yeniden yaz) temizler, kapasite aynı.";
-            if (realloc > 0) return "Yeniden atanmış sektör (5) var — Yüzey Tara, sonra remap/kes. Sebebe göre karar.";
+            if (sd.PredictFailure)
+                return "⚠ PredictFailure — disk 'ölüyorum' diyor. ÖNCE VERİYİ KURTAR" + (isSsd ? " → yeni SSD'ye klonla." : ", maskeleme çözmez.");
+            if (isSsd && wearCur >= 0 && wearCur <= 20)
+                return "SSD aşınması yüksek (ömür bitmek üzere) — yeni SSD'ye klonla, 'tamir' yok.";
+            if (rep187 > 0 || to188 > 0)
+                return isSsd ? "Düzeltilemez (187)/timeout (188) — SSD denetleyici/NAND sorunlu. Klonla, veriyi kurtar."
+                             : "Düzeltilemez (187)/timeout (188) — kafa/elektronik bozuluyor. Veriyi kurtar.";
+            if (!isSsd && spinretry > 0)
+                return "Spin retry (10) — motor/yatak mekanik sorunu. Veriyi kurtar, tamir riskli.";
+            if (stStatus >= 5 && stStatus <= 8 && stStatus != 7)
+                return "Öz-test fiziksel hata buldu (servo/elektrik/hasar) — disk ölüyor, veriyi kurtar.";
+            if (crc > 0 && realloc == 0 && pending == 0)
+                return "CRC (199) var, bad yok — KABLO/bağlantı sorunu. Kabloyu/portu değiştir, tekrar ölç (disk büyük ihtimalle sağlam).";
+            if (pending > 0 && realloc == 0)
+                return "Bekleyen sektör (197) var, realloc 0 — ♻ Refresh temizler, kapasite aynı. (zayıf sektör)";
+            if (stStatus == 7 || realloc > 0 || pending > 0)
+                return isSsd ? "Yeniden atanmış/bekleyen blok var (SSD) — bad NAND büyüyor, klonla; Refresh pending'i azaltır."
+                             : "Yeniden atanmış/bekleyen sektör var — Yüzey Tara → bad sonda ise HPA kes, dağınıksa Refresh. Sebebe bak.";
             return "Belirgin kritik SMART sinyali yok. Performans kötüyse Yüzey Tara + kablo/port kontrol.";
         }
 
