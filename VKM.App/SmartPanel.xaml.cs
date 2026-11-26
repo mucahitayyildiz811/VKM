@@ -125,6 +125,8 @@ namespace VKM.App
             int sector = d.BytesPerSector <= 0 ? 512 : d.BytesPerSector;
             string dev = d.DeviceId;
             _scan = new SurfaceScan(() => PhysicalDisk.OpenReadOnly(dev, total, sector), total, sector);
+            Log.Info("Yüzey Tara: " + d.Model + " · harita " + (int)SurfMap.ActualWidth + "x" + (int)SurfMap.ActualHeight +
+                     " · blok " + (_scan.BlockBytes / 1024 / 1024) + "MB · " + _scan.Blocks.ToString("N0") + " blok");
 
             if (RecoBorder != null) RecoBorder.Visibility = Visibility.Collapsed;
             ScanBtn.IsEnabled = false; ScanStopBtn.IsEnabled = true;

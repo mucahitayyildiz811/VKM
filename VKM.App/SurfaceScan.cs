@@ -38,8 +38,8 @@ namespace VKM.App
         public void Run(Action report)
         {
             Stream? s = null;
-            try { s = _open(); }
-            catch { for (int i = 0; i < Blocks; i++) Status[i] = 3; BadCount = Blocks; Done = Blocks; Cur = -1; report(); return; }
+            try { s = _open(); Log.Ok("Yüzey: disk açıldı, okunuyor…"); }
+            catch (Exception ex) { Log.Bad("Yüzey: disk AÇILAMADI — " + ex.Message); for (int i = 0; i < Blocks; i++) Status[i] = 3; BadCount = Blocks; Done = Blocks; Cur = -1; report(); return; }
 
             var buf = new byte[BlockBytes];
             var sw = new Stopwatch();
@@ -73,6 +73,8 @@ namespace VKM.App
                     Status[b] = st;
                     if (st == 1) OkCount++; else if (st == 2) SlowCount++; else BadCount++;
                     Done++;
+                    if (b == 0) Log.Ok("Yüzey: ilk blok okundu (çalışıyor).");
+                    else if ((b & 0x3FF) == 0) Log.Info("Yüzey: " + Done.ToString("N0") + "/" + Blocks.ToString("N0") + " blok");
                     report();
                 }
             }

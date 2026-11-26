@@ -49,7 +49,7 @@ namespace VKM.App
 
             LogList.ItemsSource = Log.Items;
             Log.Added += () => { LogCount.Text = Log.Items.Count > 0 ? "(" + Log.Items.Count + ")" : ""; LogScroll.ScrollToEnd(); };
-            Log.Info("Veri Kurtarma Merkezi hazır.");
+            Log.Info("Veri Kurtarma Merkezi hazır. (build: yuzey-tani v3 · log tanılama)");
 
             // Sol UFS ağacı = RAID paneli (disk → bölüm → üyelerin altında dizi); açılan düğüm sağda sekmede
             DevTree.Init(Disks, (open, len, title, drives) => AddRecoveryTab(new RecoveryWindow(open, len, title, drives), title, null));
