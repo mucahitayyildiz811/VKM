@@ -69,6 +69,14 @@ namespace VKM.App
             else { DiskList.ItemsSource = new System.Collections.Generic.List<DiskInfo> { d }; }
         }
 
+        // iş/sekme açıkken sol disk panelini tamamen gizle (temiz ekran); hepsi kapanınca geri getir
+        private void UpdateDiskPanel()
+        {
+            bool busy = MainTabs != null && MainTabs.Items.Count > 0;
+            if (DiskCol != null) DiskCol.Width = busy ? new GridLength(0) : new GridLength(300);
+            if (DiskPanel != null) DiskPanel.Visibility = busy ? Visibility.Collapsed : Visibility.Visible;
+        }
+
         // Veri Kurtarma içinden RAID/diziler ağacını aç (ayrı modül değil)
         private void RaidView_Click(object sender, RoutedEventArgs e) => OnModule("raid");
 
@@ -113,11 +121,13 @@ namespace VKM.App
                 try { panel.Cleanup(); } catch { }
                 FocusDisk(null);
                 if (MainTabs.Items.Count == 0) EmptyHint.Visibility = Visibility.Visible;
+                UpdateDiskPanel();
             };
             MainTabs.Items.Add(tab);
             MainTabs.SelectedItem = tab;
             EmptyHint.Visibility = Visibility.Collapsed;
             FocusDisk(src);
+            UpdateDiskPanel();
         }
 
         private void AddRecoveryTab(RecoveryWindow view, string title, DiskInfo? owner)
@@ -155,11 +165,13 @@ namespace VKM.App
                 try { view.Cleanup(); } catch { }
                 if (owner != null) owner.IsBusy = false;   // disk kilidi serbest
                 if (MainTabs.Items.Count == 0) EmptyHint.Visibility = Visibility.Visible;
+                UpdateDiskPanel();
             };
 
             MainTabs.Items.Add(tab);
             MainTabs.SelectedItem = tab;
             EmptyHint.Visibility = Visibility.Collapsed;
+            UpdateDiskPanel();
         }
 
         // "＋ İmaj Aç" — disk imajı dosyası seç ve Veri Kurtarma sekmesinde aç

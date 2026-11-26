@@ -32,7 +32,7 @@ namespace VKM.App
             if (app == null) return;
             app.Dispatcher.BeginInvoke(() =>
             {
-                string key = lvl switch { LogLevel.Ok => "Ok", LogLevel.Warn => "Warn", LogLevel.Bad => "Bad", _ => "ConsoleFg" };
+                string key = lvl switch { LogLevel.Ok => "Ok", LogLevel.Warn => "Warn", LogLevel.Bad => "Bad", _ => "Text" };
                 Brush br; try { br = Theme.Brush(key); } catch { br = Brushes.Gainsboro; }
                 Items.Add(new LogItem { Time = DateTime.Now.ToString("HH:mm:ss"), Text = msg, Color = br });
                 while (Items.Count > Max) Items.RemoveAt(0);

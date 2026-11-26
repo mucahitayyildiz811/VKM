@@ -36,13 +36,13 @@
             <TabControl x:Name="BottomTabs" Background="Transparent" BorderThickness="0">
                 <!-- LOG -->
                 <TabItem Header="Log">
-                    <Border Background="{DynamicResource BrConsoleBg}">
+                    <Border Background="{DynamicResource BrPanel}">
                         <ScrollViewer x:Name="LogScroll" VerticalScrollBarVisibility="Auto" Padding="10,6">
                             <ItemsControl x:Name="LogList">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <StackPanel Orientation="Horizontal" Margin="0,0,0,1">
-                                            <TextBlock Text="{Binding Time}" Foreground="{DynamicResource BrConsoleTx}" FontFamily="Consolas" FontSize="11.5" Width="62"/>
+                                            <TextBlock Text="{Binding Time}" Foreground="{DynamicResource BrDim}" FontFamily="Consolas" FontSize="11.5" Width="62"/>
                                             <TextBlock Text="{Binding Text}" Foreground="{Binding Color}" FontFamily="Consolas" FontSize="11.5" TextWrapping="Wrap"/>
                                         </StackPanel>
                                     </DataTemplate>
@@ -81,7 +81,7 @@
                             </StackPanel>
                         </Border>
                         <!-- harita -->
-                        <Border Background="{DynamicResource BrConsoleBg}" BorderBrush="{DynamicResource BrLine}" BorderThickness="1" CornerRadius="8">
+                        <Border Background="{DynamicResource BrCard}" BorderBrush="{DynamicResource BrLine}" BorderThickness="1" CornerRadius="8">
                             <Image x:Name="MapImage" Stretch="None" HorizontalAlignment="Left" VerticalAlignment="Top" RenderOptions.BitmapScalingMode="NearestNeighbor" Margin="4"/>
                         </Border>
                     </DockPanel>

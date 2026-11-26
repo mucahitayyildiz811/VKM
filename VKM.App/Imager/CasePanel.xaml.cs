@@ -15,6 +15,7 @@ namespace VKM.App
     public partial class CasePanel : UserControl
     {
         static int C(byte r, byte g, byte b) => unchecked((int)0xFF000000 | (r << 16) | (g << 8) | b);
+        static int ColInt(System.Windows.Media.Color c) => unchecked((c.A << 24) | (c.R << 16) | (c.G << 8) | c.B);
         static readonly int PEND = C(0xd4, 0xdb, 0xe2), OK = C(0x2e, 0x9e, 0x52), BAD = C(0xd6, 0x45, 0x41),
                             WARN = C(0xe8, 0xa0, 0x08), SKIP = C(0xb9, 0xc2, 0xcc), CUR = C(0xd2, 0x3a, 0xd2);
 
@@ -110,8 +111,10 @@ namespace VKM.App
                 _buf = new int[bw * bh];
                 MapImage.Source = _bmp;
             }
+            int bg = ColInt(Theme.Col("Line")), cPend = ColInt(Theme.Col("Card")), cOk = ColInt(Theme.Col("Ok")),
+                cBad = ColInt(Theme.Col("Bad")), cWarn = ColInt(Theme.Col("Warn")), cCur = ColInt(Theme.Col("Purple"));
             var buf = _buf!;
-            for (int i = 0; i < buf.Length; i++) buf[i] = CBG;
+            for (int i = 0; i < buf.Length; i++) buf[i] = bg;
 
             var st = _store.Status; int blocks = _store.Blocks; long cur = _store.CurBlock;
             for (int k = 0; k < cnt; k++)
@@ -125,7 +128,7 @@ namespace VKM.App
                     if (s == 2) bad++; else if (s == 1 || s == 3) read++;
                     if (cur == b) hasCur = true;
                 }
-                int clr = hasCur ? CUR : bad > 0 ? BAD : (tot > 0 && read == tot) ? OK : read > 0 ? WARN : PEND;
+                int clr = hasCur ? cCur : bad > 0 ? cBad : (tot > 0 && read == tot) ? cOk : read > 0 ? cWarn : cPend;
                 int cx = (k % cols) * CELL, cy = (k / cols) * CELL;
                 for (int y = 0; y < CELL - 1; y++) { int row = (cy + y) * bw + cx; for (int x = 0; x < CELL - 1; x++) buf[row + x] = clr; }
             }
