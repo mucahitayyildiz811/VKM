@@ -247,8 +247,8 @@ namespace VKM.App
                 _buf = new int[bw * bh];
                 SurfMap.Source = _bmp;
             }
-            int bg = ColInt(Theme.Col("Line")), cPend = ColInt(Theme.Col("Card")),
-                cOk = ColInt(Theme.Col("Ok")), cWarn = ColInt(Theme.Col("Warn")), cBad = ColInt(Theme.Col("Bad"));
+            int bg = C(0xe6, 0xea, 0xee), cPend = C(0xc6, 0xce, 0xd6);   // ızgara + okunmamış (görünür gri)
+            int cOk = ColInt(Theme.Col("Ok")), cWarn = ColInt(Theme.Col("Warn")), cBad = ColInt(Theme.Col("Bad"));
             var buf = _buf!;
             for (int i = 0; i < buf.Length; i++) buf[i] = bg;
 

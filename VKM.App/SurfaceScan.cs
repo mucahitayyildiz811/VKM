@@ -24,14 +24,14 @@ namespace VKM.App
             _open = open; Total = total; Sector = sector < 512 ? 512 : sector;
             _slowMs = slowMs; _badMs = badMs;
 
-            // ~8000 blok hedefle, sektöre hizala (büyük diskte zonlar, küçükte ince)
-            long target = 8000;
-            long bb = Total / target;
+            // blok boyutu: ~20000 blok hedefle ama 1MB..64MB arası tut (ilerleme görünür olsun)
+            long bb = Total / 20000;
+            if (bb > 64L * 1024 * 1024) bb = 64L * 1024 * 1024;
+            if (bb < 1L * 1024 * 1024) bb = 1L * 1024 * 1024;
             bb = (bb / Sector) * Sector;
             if (bb < Sector) bb = Sector;
-            // çok büyük blok olmasın (en az ~2000 blok), çok küçük de olmasın
             BlockBytes = bb;
-            Blocks = (int)Math.Min(60000, (Total + BlockBytes - 1) / BlockBytes);
+            Blocks = (int)Math.Min(2_000_000, (Total + BlockBytes - 1) / BlockBytes);
             Status = new byte[Blocks];
         }
 
