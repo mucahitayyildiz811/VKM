@@ -95,10 +95,12 @@ namespace VKM.App
             Stream? s = null;
             try { s = open(); } catch { return (points, 0, points, "disk açılamadı"); }
             var buf = new byte[chunk];
+            int sampled = 0;
             try
             {
                 for (int i = 0; i < points; i++)
                 {
+                    sampled = i + 1;
                     double frac = points == 1 ? 0 : (double)i / (points - 1);
                     long off = (long)(frac * (total - chunk)); off = (off / sector) * sector; if (off < 0) off = 0;
                     try
@@ -111,6 +113,7 @@ namespace VKM.App
                         else if (sw.ElapsedMilliseconds >= 80) slow++;
                     }
                     catch { bad++; badFrac.Add(frac); }
+                    if (bad >= 12 && i >= 12) break;   // yaygın bad → disk ölüyor, boşuna bekleme
                 }
             }
             finally { try { s.Dispose(); } catch { } }
@@ -122,7 +125,7 @@ namespace VKM.App
                 foreach (var f in badFrac) { if (f < lo) lo = f; if (f > hi) hi = f; }
                 where = lo >= 0.65 ? "SONDA" : hi <= 0.35 ? "BAŞTA" : (hi - lo) <= 0.35 ? "ORTADA (kümeli)" : "DAĞINIK";
             }
-            return (bad, slow, points, where);
+            return (bad, slow, sampled > 0 ? sampled : points, where);
         }
 
         public long LbaOf(long block) => block * BlockBytes / Sector;
