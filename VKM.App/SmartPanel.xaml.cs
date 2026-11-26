@@ -59,7 +59,14 @@ namespace VKM.App
             AttrList.ItemsSource = sd.Attrs;
             string poh = sd.PowerOnHours.HasValue ? sd.PowerOnHours.Value.ToString("N0") + " saat" : "-";
             string temp = sd.TempC.HasValue ? sd.TempC.Value + " °C" : "-";
-            SummaryText.Text =
+            var id = AtaSmart.Identify(d.DeviceId);
+            string devLine = "";
+            if (id.HasValue)
+            {
+                string t = id.Value.rotation == 1 ? "SSD" : id.Value.rotation > 1 ? "HDD " + id.Value.rotation + " RPM" : "disk";
+                devLine = "Tür: " + t + "   ·   FW " + id.Value.fw + "   ·   Seri " + id.Value.serial + "\n";
+            }
+            SummaryText.Text = devLine +
                 "Durum: " + (sd.PredictFailure ? "⚠ ARIZA TAHMİNİ" : "✓ Normal") +
                 "      Çalışma: " + poh + "      Sıcaklık: " + temp + "\n" +
                 "Yeniden atanan (5): " + (sd.Reallocated?.ToString() ?? "-") +

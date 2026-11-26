@@ -36,8 +36,34 @@ namespace VKM.App
         [DllImport("kernel32.dll", SetLastError = true)]
         static extern bool DeviceIoControl(SafeFileHandle h, uint code, ref APTD inBuf, int inSize, ref APTD outBuf, int outSize, out uint ret, IntPtr ov);
 
+        // ATA IDENTIFY DEVICE (0xEC) → model, firmware, seri, dönüş hızı (1 = SSD, yoksa RPM)
+        public static (string model, string fw, string serial, int rotation)? Identify(string deviceId)
+        {
+            var d = DataIn(deviceId, 0xEC, 0, 0, 0);
+            if (d == null) return null;
+            return (AtaStr(d, 27, 20), AtaStr(d, 23, 4), AtaStr(d, 10, 10), d[434] | (d[435] << 8));
+        }
+
+        // ATA identify string: her 16-bit sözcükte baytlar takas (yüksek bayt önce)
+        static string AtaStr(byte[] buf, int wordStart, int wordCount)
+        {
+            var sb = new System.Text.StringBuilder();
+            for (int i = 0; i < wordCount; i++)
+            {
+                int off = (wordStart + i) * 2;
+                if (off + 1 >= buf.Length) break;
+                sb.Append((char)buf[off + 1]);
+                sb.Append((char)buf[off]);
+            }
+            return sb.ToString().Trim().Trim('\0');
+        }
+
         // SMART 512 baytlık veri bloğunu oku. feature: 0xD0 (DATA) ya da 0xD1 (THRESHOLDS). Olmazsa null.
         public static byte[]? ReadBlock(string deviceId, byte feature)
+            => DataIn(deviceId, 0xB0, feature, 0x4F, 0xC2);
+
+        // 512 baytlık veri-giriş ATA komutu (SMART / IDENTIFY ortak yolu)
+        static byte[]? DataIn(string deviceId, byte command, byte feature, byte lbaMid, byte lbaHigh)
         {
             SafeFileHandle? h = null;
             try
@@ -60,12 +86,11 @@ namespace VKM.App
                         CurrentTaskFile = new byte[8],
                         PreviousTaskFile = new byte[8]
                     };
-                    // SMART: Features=feature, SectorCount=1, LbaMid=0x4F, LbaHigh=0xC2, Command=0xB0
                     p.CurrentTaskFile[0] = feature;
                     p.CurrentTaskFile[1] = 1;
-                    p.CurrentTaskFile[3] = 0x4F;
-                    p.CurrentTaskFile[4] = 0xC2;
-                    p.CurrentTaskFile[6] = 0xB0;
+                    p.CurrentTaskFile[3] = lbaMid;
+                    p.CurrentTaskFile[4] = lbaHigh;
+                    p.CurrentTaskFile[6] = command;
 
                     bool ok = DeviceIoControl(h, IOCTL_ATA_PASS_THROUGH_DIRECT, ref p, p.Length, ref p, p.Length, out _, IntPtr.Zero);
                     return ok ? data : null;
