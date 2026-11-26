@@ -47,6 +47,8 @@ namespace VKM.App
             var map = SmartReader.ReadAll();
             map.TryGetValue(SmartReader.Norm(d.Pnp), out SmartData? sd);
             if (sd == null || !sd.HasData || sd.Attrs.Count == 0)
+                sd = SmartReader.ReadViaAta(d.DeviceId);   // WMI boşsa ATA pass-through ile dene
+            if (sd == null || !sd.HasData || sd.Attrs.Count == 0)
             {
                 SummaryText.Text = IsAdmin()
                     ? "SMART okunamadı — program yönetici (✓) ama bu disk SMART geçirmiyor: SAS/RAID denetleyici ya da USB köprüsü ardında olabilir. SATA'ya doğrudan takıp dene."

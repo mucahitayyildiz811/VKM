@@ -74,7 +74,7 @@ namespace VKM.App
                     if (st == 1) OkCount++; else if (st == 2) SlowCount++; else BadCount++;
                     Done++;
                     if (b == 0) Log.Ok("Yüzey: ilk blok okundu (çalışıyor).");
-                    else if ((b & 0x3FF) == 0) Log.Info("Yüzey: " + Done.ToString("N0") + "/" + Blocks.ToString("N0") + " blok");
+                    else if ((b & 0x3FFF) == 0) Log.Info("Yüzey: " + Done.ToString("N0") + "/" + Blocks.ToString("N0") + " blok");
                     report();
                 }
             }

@@ -94,6 +94,20 @@ namespace VKM.App
             catch { /* SMART okunamadı (yönetici gerekebilir) */ }
         }
 
+        // ATA pass-through ile doğrudan oku (WMI boş dönerse). Olmazsa null.
+        public static SmartData? ReadViaAta(string deviceId)
+        {
+            var dataD0 = AtaSmart.ReadBlock(deviceId, 0xD0);
+            if (dataD0 == null) return null;
+            var d = new SmartData();
+            var thr = AtaSmart.ReadBlock(deviceId, 0xD1);
+            if (thr != null)
+                for (int off = 2; off + 12 <= thr.Length; off += 12) { byte id = thr[off]; if (id != 0) d.Thresh[id] = thr[off + 1]; }
+            ParseAttributes(dataD0, d);
+            d.HasData = d.Attrs.Count > 0;
+            return d.HasData ? d : null;
+        }
+
         // 512 baytlık SMART verisini öznitelik öznitelik çöz
         private static void ParseAttributes(byte[] raw, SmartData d)
         {
