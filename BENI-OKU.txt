@@ -1,3 +1,49 @@
+VERİ KURTARMA MERKEZİ — Build 177  (SMART modülü — gece çalışması)
+=================================================================
+[2026-11-27] Gece boyu SMART modülü derinleştirildi. HEPSİ GitHub'da derlendi (yeşil).
+VS'de: Git → Pull → ▶ (YÖNETİCİ olmalı). Sol çubuktan 🩺 SMART.
+
+YENİ: 🔍 OTO-TEŞHİS (tek tuş)  ← en önemli
+- Disk seç → "🔍 Oto-Teşhis" bas. Program tek seferde şunu yapar:
+  · SMART okur (WMI olmazsa ATA pass-through ile)
+  · Disk türünü söyler (SSD / HDD + RPM, firmware, seri — ATA IDENTIFY)
+  · Son öz-test durumunu okur
+  · Hızlı yüzey örneği alır (disk boyunca 24 nokta, SALT OKUNUR, saniyeler)
+  · Hepsini TEK karara indirir: ne yapmalı (klonla / Refresh / HPA kes / kablo / sağlıklı)
+- Tam tarama değil — kesin harita için yine "Yüzey Tara".
+
+SMART OKUMA ARTIK WMI'yi AŞIYOR
+- Bazı diskler (18TB, bazı USB/SAS) WMI'den SMART vermiyordu. Artık WMI boşsa
+  ATA pass-through ile doğrudan okunur; öznitelikler + özet dolar.
+- Tanı mesajları SSD/HDD ayrımına ve öz-test sonucuna göre daha isabetli.
+
+ÖZ-TEST (🔬 Kısa / Uzun)
+- Diskin KENDİ dahili öz-testini başlatır (kısa ~1-2 dk, uzun saatler). Arka planda
+  diskte çalışır, program kapansa da sürer. Sonucu "🔄 Yenile" ile özet satırında gör.
+
+TEST LİSTESİ (sabah, elindeki disklerle):
+1) Sağlıklı disk → Oto-Teşhis → "sağlıklı, işlem gerekmez" demeli.
+2) SSD → tür "SSD" çıkmalı (RPM değil).
+3) Bad'li / sorunlu disk → Oto-Teşhis bad'in KONUMUNU (sonda/başta/dağınık) + öneri
+   vermeli. Sonra "Yüzey Tara" ile haritada doğrula.
+4) USB kutudaki disk → SMART/öz-test "USB köprüsü geçirmiyor" diyebilir (normal);
+   doğrudan SATA'ya takıp tekrar dene.
+5) Pending'i olan (realloc 0) disk → "Refresh" öner; istersen ♻ Refresh (veri kaybı yok).
+
+HPA KES / GERİ AL — ÖNEMLİ NOT:
+- SET MAX (HPA) komutu disk GÜÇ-DÖNGÜSÜ BAŞINA BİR KEZ çalışır:
+  kes → diski ÇIKAR-TAK → gerekiyorsa "↩ Tam kapasite" ile geri al.
+  Çıkarmadan hemen geri almaya çalışırsan komut reddedilir (çıkar-tak yeter).
+- USB köprüleri ATA pass-through geçirmez → HPA sadece doğrudan SATA'da.
+
+HENÜZ YAPILMADI (seninle, disk başında):
+- SMART özniteliklerini gerçek SIFIRLAMA (reallocated→0): üretici-özel (WD/Seagate/
+  Toshiba). Körlemesine yıkıcı vendor komutu YAZMADIM — senin disklerin + referansla,
+  "WD'ye başla" dediğinde ekleyeceğiz.
+- Arayüz sadeleştirme (iznini bekliyor).
+
+---
+
 VERİ KURTARMA MERKEZİ — Build 176
 =================================
 
