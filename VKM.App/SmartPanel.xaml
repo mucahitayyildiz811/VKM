@@ -111,6 +111,12 @@
                             <Button x:Name="RefreshSurfBtn" Content="♻ Refresh" Click="DoRefresh_Click" Height="32" Padding="12,0" Margin="8,0,0,0" Cursor="Hand"
                                     Background="{DynamicResource BrBtn}" Foreground="{DynamicResource BrText}" BorderBrush="{DynamicResource BrLine}" BorderThickness="1"
                                     ToolTip="Her sektörü aynı veriyle yeniden yazar — zayıf/bekleyen sektörleri düzeltir, kapasite aynı (veri kaybı yok)"/>
+                            <Button x:Name="HpaCutBtn" Content="✂ HPA Kes (öneri)" Click="HpaCut_Click" IsEnabled="False" Height="32" Padding="12,0" Margin="8,0,0,0" Cursor="Hand"
+                                    Background="{DynamicResource BrBtn}" Foreground="{DynamicResource BrText}" BorderBrush="{DynamicResource BrLine}" BorderThickness="1"
+                                    ToolTip="Sondaki bad bölgeyi LBA dışı bırak (öneriden gelen kesim noktası) → kalan %100. Geri alınabilir. SATA gerekir."/>
+                            <Button x:Name="HpaRestoreBtn" Content="↩ Tam kapasite" Click="HpaRestore_Click" Height="32" Padding="12,0" Margin="8,0,0,0" Cursor="Hand"
+                                    Background="{DynamicResource BrBtn}" Foreground="{DynamicResource BrText}" BorderBrush="{DynamicResource BrLine}" BorderThickness="1"
+                                    ToolTip="HPA'yı kaldır → diskin tam (native) kapasitesini geri getir"/>
                             <Border Width="1" Background="{DynamicResource BrLine}" Margin="12,2"/>
                             <Border Width="11" Height="11" CornerRadius="2" Background="{DynamicResource BrOk}" VerticalAlignment="Center"/>
                             <TextBlock Text="iyi" Margin="4,0,12,0" VerticalAlignment="Center" Foreground="{DynamicResource BrDim}" FontSize="12"/>

@@ -48,7 +48,9 @@ namespace VKM.App
             map.TryGetValue(SmartReader.Norm(d.Pnp), out SmartData? sd);
             if (sd == null || !sd.HasData || sd.Attrs.Count == 0)
             {
-                SummaryText.Text = "SMART okunamadı — yönetici olarak çalıştır, ya da bu disk/USB köprüsü SMART geçirmiyor.";
+                SummaryText.Text = IsAdmin()
+                    ? "SMART okunamadı — program yönetici (✓) ama bu disk SMART geçirmiyor: SAS/RAID denetleyici ya da USB köprüsü ardında olabilir. SATA'ya doğrudan takıp dene."
+                    : "⚠ Program YÖNETİCİ DEĞİL. Visual Studio'dan test ediyorsan: VS'yi kapat → 'Yönetici olarak çalıştır' ile aç → tekrar başlat. Ya da derlenmiş VeriKurtarmaMerkezi.exe'yi çift tıkla (UAC sorar, yönetici açılır).";
                 return;
             }
 
@@ -63,6 +65,16 @@ namespace VKM.App
                 "      Düzeltilemez (198): " + (sd.Uncorrectable?.ToString() ?? "-") +
                 "      CRC (199): " + (sd.Crc?.ToString() ?? "-") + "\n" +
                 "🧠 Tanı: " + DiagnoseHealth(sd);
+        }
+
+        static bool IsAdmin()
+        {
+            try
+            {
+                using var id = System.Security.Principal.WindowsIdentity.GetCurrent();
+                return new System.Security.Principal.WindowsPrincipal(id).IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
+            }
+            catch { return false; }
         }
 
         // SMART tanısı: sağlık kötüyse NEDEN + ne yapmalı (bad yokken bile)
@@ -128,6 +140,48 @@ namespace VKM.App
         {
             if (_scan != null) _scan.Stopping = true;
             _refreshCancel = true;
+        }
+
+        // ---------------- HPA kes / geri al ----------------
+        private void HpaCut_Click(object sender, RoutedEventArgs e)
+        {
+            if (DiskCombo.SelectedItem is not DiskInfo d) { MessageBox.Show("Önce bir disk seç."); return; }
+            if (_recoCutLba <= 0) { MessageBox.Show("Önce 'Yüzey Tara' çalıştır — kesim noktası taramadan gelir."); return; }
+            int sector = d.BytesPerSector <= 0 ? 512 : d.BytesPerSector;
+            try
+            {
+                long nat = HpaControl.ReadNativeMax(d.DeviceId);
+                long newMax = _recoCutLba;
+                if (newMax >= nat) { MessageBox.Show("Kesim noktası zaten diskin sonunda — kesecek bir şey yok."); return; }
+                long lostBytes = (nat - newMax) * sector;
+                var r = MessageBox.Show(
+                    "HPA KES — " + d.Model + "\n\n" +
+                    "Yeni azami LBA: " + newMax.ToString("N0") + "\n" +
+                    "Şu anki (native) azami LBA: " + nat.ToString("N0") + "\n" +
+                    "Gizlenecek kapasite: ~" + Fmt(lostBytes) + "\n\n" +
+                    "Sondaki bad bölge kullanıcı alanı DIŞINA çıkar → kalan %100.\n" +
+                    "GERİ ALINABİLİR ('↩ Tam kapasite' ile).\n\n" +
+                    "Uygulansın mı?",
+                    "HPA Kes", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                if (r != MessageBoxResult.Yes) return;
+                HpaControl.SetMax(d.DeviceId, newMax);
+                MessageBox.Show("Yapıldı — yeni azami LBA ayarlandı. Diski çıkar-tak ya da 'Yenile' ile yeni kapasiteyi gör.", "HPA");
+            }
+            catch (Exception ex) { MessageBox.Show("HPA kes başarısız: " + ex.Message, "HPA"); }
+        }
+
+        private void HpaRestore_Click(object sender, RoutedEventArgs e)
+        {
+            if (DiskCombo.SelectedItem is not DiskInfo d) { MessageBox.Show("Önce bir disk seç."); return; }
+            var r = MessageBox.Show("Diskin TAM (native) kapasitesi geri getirilecek (HPA kaldırılır). Devam?",
+                                    "Tam kapasite", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (r != MessageBoxResult.Yes) return;
+            try
+            {
+                long nat = HpaControl.RestoreNative(d.DeviceId);
+                MessageBox.Show("Tam kapasite geri getirildi. Native azami LBA: " + nat.ToString("N0") + "\n(Diski çıkar-tak ki Windows yeni kapasiteyi görsün.)", "HPA");
+            }
+            catch (Exception ex) { MessageBox.Show("Geri alma başarısız: " + ex.Message, "HPA"); }
         }
 
         // ---------------- Refresh (pending temizle, kapasite aynı) ----------------
@@ -237,12 +291,15 @@ namespace VKM.App
         }
 
         // Karar motoru: bad dağılımına göre "ne yapmalı" önerir (uygulama bir sonraki adım, hep onaylı)
+        private long _recoCutLba = -1;
         private void ShowDecision(SurfaceScan sc)
         {
             int blocks = sc.Blocks; var st = sc.Status;
             int firstBad = -1;
             for (int b = 0; b < blocks; b++) if (st[b] == 3) { firstBad = b; break; }
             double badPct = blocks > 0 ? sc.BadCount / (double)blocks * 100 : 0;
+            _recoCutLba = -1;
+            if (HpaCutBtn != null) HpaCutBtn.IsEnabled = false;
 
             string msg;
             if (sc.BadCount == 0 && sc.SlowCount == 0)
@@ -256,7 +313,11 @@ namespace VKM.App
                 if (badPct > 15)
                     msg = "⚠ Ağır hasar (%" + badPct.ToString("0.0") + " bad). Maskeleme kalıcı olmaz — ÖNCE VERİYİ KURTAR, sonra karar ver.";
                 else if (firstBad > blocks * 0.5 && lostPct <= 20)
-                    msg = "Öneri: bad diskin SONUNDA. Son ~" + Fmt(cutBytes) + " kesilsin (HPA) → kalan %100. Kapasite düşer ama geri alınabilir.";
+                {
+                    msg = "Öneri: bad diskin SONUNDA. Son ~" + Fmt(cutBytes) + " kesilsin (HPA) → kalan %100. Kapasite düşer ama geri alınabilir. → '✂ HPA Kes' ile uygula.";
+                    _recoCutLba = sc.LbaOf(firstBad) - 1;   // son sağlam LBA
+                    if (HpaCutBtn != null) HpaCutBtn.IsEnabled = _recoCutLba > 0;
+                }
                 else if (sc.BadCount <= Math.Max(50, (int)(blocks * 0.003)))
                     msg = "Öneri: az ve dağınık (" + sc.BadCount + " blok). REMAP/gizle (yeniden yaz) → spare'e taşınır, kapasite AYNI kalır.";
                 else
