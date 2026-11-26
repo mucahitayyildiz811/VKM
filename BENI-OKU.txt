@@ -1,0 +1,556 @@
+VERİ KURTARMA MERKEZİ — Build 176
+=================================
+
+RAID ARTIK AYRI MODÜL DEĞİL — VERİ KURTARMA'NIN İÇİNDE
+- Üstteki ayrı "RAID" kutusu KALDIRILDI.
+- Veri Kurtarma modülünde sol üstte "🧩 RAID / Diziler" düğmesi: basınca UFS gibi
+  disk/RAID ağacı açılır (diskleri tara, RAID'leri otomatik bul, düğümü "Veri
+  Kurtarma'da aç").
+- RAID ağacında sol üstte "⟵ Diskler" ile disk listesine dönülür.
+- (Tam tek-ağaç UFS birleşimi — solda sürükle ağaç + sağda sekmeler — GitHub
+  otomatik derleme kurulunca temiz şekilde yapılacak.)
+
+---
+
+VERİ KURTARMA MERKEZİ — Build 175
+=================================
+
+SAĞ TIK → HARİTA (full sektör)
+- Soldaki bölüme sağ tıkla → "🗺 Haritayı göster (full sektör)" → alttaki Harita
+  sekmesi açılır, tüm diskin sektör haritası görünür (PC-3000 mantığı).
+- "Hex / Sektör (ayrıntı)" eski hex görünümü olarak menüde duruyor.
+
+---
+
+VERİ KURTARMA MERKEZİ — Build 174
+=================================
+
+CASE GÖRÜNÜMÜ UFS GİBİ SADELEŞTİ
+- İmaj/kurtarma case sekmesinde üstteki gereksiz araçlar GİZLENDİ:
+  Video Tara, Hex/Sektör, İmza Dök, Format Dökümü, Oto-Teşhis, Oynat, Log,
+  Dışa uzantı, Video FPS. Kalan: ağaç + dosya listesi + "Seçilenleri Kaydet".
+  (Bu araçlar CCTV vb. modüllerde yerinde duruyor; sadece case içinde gizli.)
+
+HARİTA = KARE SEKTÖR IZGARASI (UFS gibi)
+- Alt "Harita" sekmesi artık küçük küçük kare sektörlerden oluşuyor; ekrana
+  sığacak kadar hücre açılır, okudukça hücre YEŞİL olur (kısmi=sarı, arızalı=kırmızı).
+- Hücre sayısı ekrana göre; her hücre = toplam/hücre (32GB'da küçük, 10TB'da büyük bayt).
+
+Not: "diske/bölüme sağ tıkla → Harita (full sektör)" bir sonraki adımda.
+
+---
+
+VERİ KURTARMA MERKEZİ — Build 173
+=================================
+
+İŞ ARTIK AYRI PENCERE DEĞİL, ÜST SEKMEDE
+- İş açınca (Yeni/Eski) üstteki sekme şeridinde yeni bir sekme açılır
+  (başlıkta iş no + müşteri adı). Tüm UFS düzeni o sekmenin içinde:
+  ortada ağaç+dosyalar, altta Log | Harita | Durum, üstte ▶ İmaj Al (0→son, arka planda).
+- İş açıkken solda sadece o disk görünür; sekme kapanınca diskler geri gelir.
+
+YENİ İŞ SIRASI PC-3000 GİBİ
+- ① Veri/imaj nereye kaydedilsin (hedef klasör) → ② iş no + ad soyad → ③ kaynak disk.
+
+---
+
+VERİ KURTARMA MERKEZİ — Build 172
+=================================
+
+PC-3000 / UFS TARZI TEK "CASE" PENCERESİ
+- İş açınca (Yeni/Eski) ayrı bir pencere sol üstte açılır; başlıkta İş no + MÜŞTERİ adı.
+- Düzen UFS gibi: ortada ağaç + dosyalar, ALTTA sekmeler: Log | Harita | Durum.
+   · Log   : olay günlüğü (renkli).
+   · Harita: sektör haritası + sağda kafalar (aç/kapa) + okunan/arızalı/% çubuğu.
+   · Durum : model, seri, toplam/sektör/blok geometrisi, okunan/arızalı (UFS Status gibi).
+- ÜSTTE ▶ "İmaj Al (0→son)": diski baştan sona imajlar, ARKA PLANDA çalışır.
+  Root KAPANMAZ — imaj sürerken dosyaları gezmeye/müdahale etmeye devam edebilirsin.
+  ⏸ Duraklat · ⏹ Durdur · ↻ Arızalıları dene · Hız.
+- İş açıkken solda sadece o disk görünür (boştaki diskler gizlenir); iş kapanınca geri gelir.
+
+---
+
+VERİ KURTARMA MERKEZİ — Build 171
+=================================
+
+İŞ ROOT'U ARTIK ÜSTTE KÜÇÜK PENCEREDE
+- İş açınca (Yeni/Eski) root, Veri Kurtarma modülüne atmadan üstte küçük bir
+  pencerede açılır. Altta İmaj Al haritası + Başlat durur; dosya seçtikçe
+  harita canlı dolar. Böylece imaj almak için ekran kaybolmaz.
+- İmaj başlamazsa sebebi (ör. yönetici gerekmesi) hem uyarı hem log'a yazılır.
+
+ALT GÜNLÜK (LOG) PANELİ — UFS tarzı
+- En altta 📋 Günlük paneli. Üstündeki çubuktan tutup yüksekliği ayarlanır,
+  ▾ ile gizle/göster, Temizle ile boşalt.
+- Olaylar renkli düşer: disk bulundu, iş açıldı, imaj başladı/bitti/durdu, hata.
+
+---
+
+VERİ KURTARMA MERKEZİ — Build 170
+=================================
+
+İMAJ AL — Yeni İş / Eski İş (PC-3000 New/Open mantığı)
+- İş açınca CASE klasörüne CASE.vkm kaydedilir (iş no, isim, disk, imaj yolu,
+  harita durumu). Harita ~8 sn'de bir ve tam imaj bitince otomatik kaydedilir.
+- 📂 Eski İş Aç: CASE.vkm'i seç → harita ve root geri gelir.
+  · Disk hâlâ takılıysa (seri no eşleşirse) eksik bölgeler diskten de okunur.
+  · Disk yoksa imajdan okunur (okunmuş bölgeler gelir).
+
+---
+
+VERİ KURTARMA MERKEZİ — Build 169
+=================================
+
+- 168'deki 'Path' isim çakışması derleme hatası düzeltildi.
+
+---
+
+VERİ KURTARMA MERKEZİ — Build 168
+=================================
+
+İMAJ AL — iş açınca ROOT hemen gelir, okuma talep üzerine (arka plan YOK)
+- ＋ Yeni İş (no+ad → klasör → disk) deyince: imaj dosyası açılır ve ROOT
+  anında Veri Kurtarma sekmesinde gelir (sadece dosya sistemi okunur, tüm
+  disk DEĞİL). Program otomatik Veri Kurtarma modülüne geçer.
+- Bir klasörü/dosyayı gezdikçe ya da kaydedince SADECE onun sektörleri okunur
+  ve İmaj Al'daki haritada o bölge dolar (amber = talep üzerine okundu).
+  Arka planda kendi kendine ilerleyen hiçbir şey yok.
+- İstersen İmaj Al'da ▶ Başlat ile tüm diski elle imajlarsın (yeşil = tam).
+- Harita kutusuna tıkla → o bölge okunur, hem Hex açılır hem harita dolar.
+- Tek sparse imaj (okudukça büyür) + talep-üzerine okuma aynı dosyaya yazar;
+  bir daha okumak gerekmez.
+
+---
+
+VERİ KURTARMA MERKEZİ — Build 167
+=================================
+
+İMAJ AL — iş açma akışı + tek büyüyen imaj
+- ＋ Yeni İş artık tek sihirbaz: ① iş no + ad soyad ② kaydetme klasörü
+  ③ KAYNAK DİSK (diskler listelenir, seçersin). Sonra kafa haritası ekranı.
+- İmaj KAYNAK DİSKE yazılamaz: klasör kaynak diskin üzerindeyse kırmızı
+  uyarı, iş açılmaz.
+- TEK imaj dosyası, okudukça büyür (sparse): 6 TB disk → dosya 6 TB değil,
+  diskte sadece okunan kadar yer kaplar. PC-3000'in binlerce .bin'i yok.
+
+---
+
+VERİ KURTARMA MERKEZİ — Build 166
+=================================
+
+- Program artık çift tıklayınca otomatik YÖNETİCİ izni ister (UAC).
+  Elle 'yönetici olarak çalıştır' gerekmez (app.manifest eklendi).
+  NOT: Visual Studio'dan F5 ile açarken VS de yönetici olmalı; değilse VS
+  'yükseltilmiş izin gerekiyor' deyip 'yeniden başlat' önerir — kabul et.
+
+---
+
+VERİ KURTARMA MERKEZİ — Build 165
+=================================
+
+İMAJ AL — PC-3000 tarzı (Faz 6, yazılım çatısı v1)
+--------------------------------------------------
+"İmaj Al" modülü artık çalışıyor:
+- ＋ Yeni İş: iş takip numarası + ad soyad → CASE klasörü seçilir, imaj
+  oraya CASE_<no>.img olarak kaydedilir.
+- Kaynak disk seç → ▶ Başlat. Disk blok blok okunur, canlı SEKTÖR HARİTASI:
+  yeşil=okundu, kırmızı=okunamadı, turuncu=yavaş/kısmi, gri=bekliyor,
+  magenta=şu an. Üstüne gelince LBA+kafa; tıklayınca o bölgenin Hex'i açılır.
+- Sağda KAFALAR (H0..): tıkla aç/kapat — kapalı kafanın blokları okunmadan
+  atlanır (yaklaşık dağıtım; kafa sayısını üstten seçersin).
+- Hız ayarı (hızlı…yavaş/hassas), Duraklat/Sürdür, Durdur, Ters oku.
+- ↻ Arızalıları yeniden dene: kırmızı blokları sektör sektör tekrar dener,
+  kurtulanı imaja yazar.
+- Altta: LBA, kafa, okunan/arızalı, genel %, MB/s, kalan süre.
+- Bitince imaj dosyasını "İmaj Aç" ile açıp içine girebilirsin.
+
+NOT: Bu v1 yazılım çatısı — okuma ATA pass-through yoluna ve WD vb.
+fabrika/translator komutlarına (gerçek kafa haritası, kafa-depop) sonraki
+adımda bağlanacak. Kafa dağıtımı şimdilik yaklaşık.
+Çalıştırmak için VKM'yi YÖNETİCİ olarak açman gerekir (ham disk okuma).
+
+---
+
+VERİ KURTARMA MERKEZİ — Build 163
+=================================
+
+- RAID ağacındaki emoji simgeler GERÇEK ÇİZİLİ (vektör) simgelere çevrildi:
+  sabit disk (plakalı HDD), SSD, sağlam RAID dizisi (disk yığını + yeşil
+  onay), eksik diskli RAID (sarı ünlem), LVM (mor katman), RAID üyesi
+  (disk + 1/5/6 rozeti), bölümler (NTFS-N mavi, ext-E yeşil, Btrfs-B
+  turuncu, XFS, FAT), swap. Bir bakışta neyin ne olduğu belli.
+
+---
+
+VERİ KURTARMA MERKEZİ — Build 162
+=================================
+
+- Modül kutuları gerçek düğme oldu. Yalnız SEÇİLİ modülün kenarında
+  turkuaz LED döner (buradasın göstergesi); diğerleri sade. Açık/koyu
+  temada da çalışır.
+
+---
+
+VERİ KURTARMA MERKEZİ — Build 161
+=================================
+
+AÇIK TEMA + AY/KARANLIK MOD ANAHTARI (tüm program)
+--------------------------------------------------
+- Program artık AÇIK tema ile açılıyor. Sağ üstte "Karanlık mod" yazılı
+  ay/güneş anahtarı var — basınca koyuya geçer, tekrar basınca açığa döner.
+  Seçim diske kaydedilir (bir dahaki açılışta hatırlanır).
+- Tek tema motoru (Theme.cs): tüm pencereler aynı renk anahtarlarını
+  kullanır; anahtara basınca hepsi birden değişir.
+- Modül çubuğu: her modül sade bir kutu; seçili olan turkuaz vurgulu
+  (LED kaldırıldı — göz kirliliği yapıyordu).
+- Log/konsol ve hex görüntüleyici iki temada da KOYU kalır (yeşil yazı
+  okunsun diye). Video oynatıcı siyah.
+- Durum renkleri (sağlık, RAID üye durumu) iki temada da okunur orta
+  tonlara çekildi.
+NOT: RAID ağacında simgeler şimdilik emoji; taslaktaki çizili (vektör)
+simgeler bir sonraki cilalama adımında. Bir yerde koyu-üstü-koyu / açık-
+üstü-açık okunmayan yazı görürsen ekran görüntüsünü at, o noktayı düzeltirim.
+
+---
+
+VERİ KURTARMA MERKEZİ — Build 160
+=================================
+
+RAID SAĞ TIK — UFS'deki işe yarayanlar + fazlası:
+- 🔍 Kayıp bölüm / dosya sistemi / RAID-LVM parçası ara: başlangıç sektörü +
+  sektör sayısı + aile seçimi (NTFS, ReFS, exFAT, FAT, Ext2/3/4, XFS, Btrfs,
+  ReiserFS, JFS, UFS/UFS2, F2FS, HFS+, APFS, ZFS, VMFS, md, LVM, BitLocker/
+  LUKS, Dahua DHFS, Hikvision, MBR/GPT). Bulunanlar canlı eklenir; md/LVM
+  parçaları bulunursa dizi/birim KENDİLİĞİNDEN kurulur (UFS'de ayrı iş).
+  Yedek süper bloktan / yedek boot sektöründen de bölüm başını hesaplar.
+- ✚ Bölüm tanımla (başlangıç + boyut) · ⇆ 4096 bayt sektörle oku (USB kutu).
+- 🩹 Okunamayan sektör haritası yükle (ddrescue .map / LBA listesi): o
+  sektörler RAID 5/6'da PARİTEDEN GERÇEK veriyle doldurulur (UFS desenle
+  maskeler). Yedeklilik yoksa sıfır.
+- #️⃣ Hash (MD5 + SHA-1 + SHA-256 tek geçişte), ✕ listeden çıkar.
+- Tanınan sistemlere ReiserFS, JFS, UFS, F2FS, Dahua DHFS, Hikvision eklendi.
+
+---
+
+VERİ KURTARMA MERKEZİ — Build 159
+=================================
+
+YENİ: RAID MODÜLÜ (▦ RAID sekmesi)
+----------------------------------
+Diskleri tak → RAID sekmesine gir → kendiliğinden tarar, RAID'leri kurar.
+- Üst veriden otomatik: Linux md (Synology/SHR, QNAP, WD, Netgear, Asustor,
+  Buffalo), LVM (vg1-volume_1 gibi), DDF (LSI MegaRAID, Dell PERC, IBM
+  ServeRAID M), Intel RST (anakart RAID).
+- Üst verisiz (HP Smart Array, IBM, Adaptec, kontrolcü bozuk, metadata
+  silinmiş): eş boyutlu diskleri ÇÖZÜCÜ otomatik çözer — parite (GF2) +
+  NTFS MFT / ext / XFS / Btrfs / MBR-GPT izleri → seviye, blok boyutu,
+  yerleşim, disk sırası, veri başlangıcı, güven %.
+- Seviyeler: RAID 0, 1, 1E, 10 (near/far/offset), 3/4, 5, 6, 50, 60, JBOD.
+  Parite yerleşimi: sol/sağ simetrik/asimetrik, DDF, gecikmeli parite.
+- Eksik disk: RAID 5'te 1, RAID 6'da 2 disk eksikken pariteden hesaplar.
+  Bad sektörde de pariteden tamamlar. Eski (önceden düşmüş) md üyesini
+  olay sayacından tanır, devre dışı bırakır.
+- Ağaç: disk → bölüm → RAID → LVM → dosya sistemi, başlangıç sektörü,
+  boyut (GB/TB), durum ve disk sağlığı (SMART %).
+- Sağ panel: 📂 Veri Kurtarma'da aç (çift tık da olur), 🔎 Hex (her
+  sektörün hangi diskin hangi LBA'sından geldiğini gösterir), 💾 İmaj al,
+  🧪 Parite kontrolü, ⚙ Ayarları değiştir, yapılandırma kaydet/yükle.
+- ⚙ Elle RAID kur: seviye/blok/yerleşim/sıra/eksik disk; "Eksik ayarları
+  otomatik bul" ile seviyeyi verip gerisini çözücüye bıraktırabilirsin.
+- 🧩 Seçili diskleri çöz: kutucukla seçtiğin disklerde çözücü.
+- ＋ İmaj ekle: üyeler imaj dosyası da olabilir.
+- SAĞ TIK (UFS gibi): disk/bölüm → "▦ Eski RAID yapısını göster" (eski sıra,
+  blok boyutu, sol/sağ-simetrik, seviye, olay sayacı, tüm üyeler ve hangisi
+  eski) · "ℹ Özellikler" (model/seri/SMART, bölüm tablosu türleriyle, NTFS/
+  ext/XFS/Btrfs ayrıntıları) · RAID → "▦ RAID bilgileri", parite kontrolü,
+  "🔎 Eski (düşmüş) diski bul", ayarları değiştir, yapılandırma kaydet ·
+  hex, imaj al, satırı kopyala.
+- 🔎 Eski diski bul: her disk sırayla eksik sayılır, sanal disk pariteden
+  kurulur ve sağlamlık ölçülür — NTFS (MFT/INDX), ext2/3/4 (dizin+extent),
+  XFS v5 (CRC'li bloklar, inode), Btrfs (crc32c ağaç blokları); tanınan yapı
+  yoksa (VMFS, ZFS, CCTV, ham) içerik devamlılığı. Bayat disk bulunursa onu
+  hariç tutup pariteden yeni RAID kurar.
+- FS'den bağımsız çözücü: NTFS/ext/XFS/Btrfs izi yoksa (CCTV/NVR RAID,
+  tanınmayan FS) içerik devamlılığından blok boyutu + sıra + yerleşim bulur.
+- Düzen: sütun başlıklarındaki çizgileri sürükle → sütun genişler/daralır;
+  ortadaki dikey çubuk → sol ağaç / sağ panel; alttaki çubuk → log yüksekliği.
+  Çubuğa çift tık / "◧ Ayrıntı paneli" → sağ paneli aç/kapat. Ayarlar
+  hatırlanır; "↺ Düzeni sıfırla" ile varsayılana döner.
+- Yeni disk takılınca/çıkınca RAID sekmesi kendiliğinden yeniden tarar.
+Kaynak diskler her zaman SALT OKUNUR. İmaj/kurtarma kaynak diske yazılmaz.
+
+VERİ KURTARMA: sol klasör ağacında klasör boyutları (GB) da görünür.
+
+SQL: biten .bak'lar her durumda atlanır, paralel pencereler aynı dosyayı
+almaz (.isleniyor işareti), kalite özetinde gereksiz uyarılar azaldı,
+log kopyası artık yarıda kesilmiyor.
+
+---
+
+VERİ KURTARMA MERKEZİ — Build 129
+=================================
+
+SADELEŞTİRME: TEK DÜĞME, OTOMATİK, → .bak
+-----------------------------------------
+Artık SQL & Veritabanı paneli basit:
+1. "📂 Dosya Seç" → .mdf/._MS (birden fazla da olur)
+2. "🚀 Otomatik Kurtar → .bak" → gerisini program yapar:
+   log otomatik bulunur → en az kayıplı yöntem denenir → .bak üretilir
+   (kaynağın yanına, otomatik isimle) → doğrulanır.
+CSV, obj seçme, elle tıklama YOK. Sen dosyayı seç, o halleder.
+
+DURUM:
+- Sağlam .mdf / bozuk .ldf (Mikro gibi) → TEK TIK ile .bak, bitti.
+- BOZUK/ransomware dosya (motor mount edemiyor) → henüz tek-tık .bak
+  YOK; onun için "sağlam sayfalardan DB'yi yeniden kurup .bak" motoru
+  (Stellar'ın yaptığı) yapımda. O gelince o dosyalar da tek tık olacak.
+  Şimdilik o dosyalar için "Gelişmiş → 🔬 Teşhis / 🔎 Hex" ile içerik
+  görülebilir (CSV/satır çıkarma orada, gelişmiş araç olarak duruyor).
+
+---
+
+VERİ KURTARMA MERKEZİ — Build 128
+=================================
+
+B3 ASIL İŞ: SATIR ÇIKARICI (motoru baypas → gerçek veri)
+--------------------------------------------------------
+🔎 Hex / Sayfa penceresine "obj:" kutusu + "💾 Satır Çıkar" eklendi.
+
+KULLANIM:
+1. 🔎 Hex / Sayfa aç → 🧬 Sayfa Analizi (en büyük nesneler listesi çıkar)
+2. "obj:" kutusuna o listeden bir obj id yaz (örn. en büyük tablo)
+3. "💾 Satır Çıkar" → CSV konumu seç → kayıtlar çözülür
+
+NE YAPAR: Seçili nesnenin veri sayfalarındaki her kaydı çözer; değişken
+kolonları (nvarchar/varchar = isim, kod, açıklama) OKUNABİLİR METNE
+çevirir; sabit blok + null bitmap hex olarak yazar. Türkçe nvarchar
+(UTF-16) doğru çıkar. Şifreli/çöp sayfalardaki satırlar zaten gelmez
+(onlar herkes için kayıp) — SAĞLAM sayfalardan gerçek veri gelir.
+
+v1: kolon ADLARI + sabit tiplerin (int/tarih) çözümü bir sonraki adımda
+syscolpars ile eklenecek. Şimdilik değişken-kolon metni + hex.
+
+TEST: Önce obj 34 (sysschobjs) ya da 41 (syscolpars) dene — çıkan CSV'de
+sistem adları/kolon adları okunur gelmeli (doğrulama). Sonra kendi
+tablolarından birini. CSV'yi aç, metin alanları doğru mu bak, ekran
+görüntüsü at — tipli tam çözüme ona göre geçeceğim.
+
+(Sıradaki ayrı görev: tüm modüllerin log penceresini SQL'deki gibi
+yeşil + kopyalanabilir yapmak — tek seferde.)
+
+---
+
+VERİ KURTARMA MERKEZİ — Build 127
+=================================
+
+DÜZELTME: SQL artık MODÜL-8'İN İÇİNDE
+-------------------------------------
+Haklı uyarı: SQL özelliği dışarıda ayrı bir buton olmamalıydı, 8.
+modülün içinde olmalıydı. Düzeltildi:
+- Üstteki ayrı "🗄 SQL & Veritabanı" butonu KALDIRILDI.
+- Nav'daki "🗄 SQL & Veritabanı" sekmesine (modül 8) tıklayınca
+  SQL arayüzü doğrudan panelde açılıyor (Teşhis / Hex / .mdf→.bak /
+  Tablolar) — artık "yapım aşamasında" yazmıyor.
+
+Sıradaki: B3 devamı — kolon (syscolpars) + SATIR çıkarma → export.
+Senin test dosyanda tablolar doğru geldi, katalog okunuyor; şimdi o
+sağlam sayfalardan satırları çekeceğiz.
+
+---
+
+VERİ KURTARMA MERKEZİ — Build 126
+=================================
+
+(125'teki derleme hatası düzeltildi — tuple isim hatası, tek satır.)
+
+B3 İLERLEDİ: Çöp-sayfa tespiti + Tablo listesi
+----------------------------------------------
+- Sayfa Analizi artık GERÇEK SQL sayfası (header 0x01 + bilinen tip)
+  ile ÇÖP/şifreli sayfayı ayırıyor → "ÇÖP/şifreli: N ⚠ ransomware/hasar
+  işareti" satırı. (Sahte boot=3 gibi sayımlar da temizlendi.)
+- 🔎 Hex / Sayfa penceresine "📋 Tablolar" düğmesi: sysschobjs'tan
+  (obj 34) nesne/tablo adlarını çıkarır (id + ad). Veritabanındaki
+  tabloları görürsün.
+
+Senin test dosyanda teşhis: ~72MB, 6691 boş + ~1500 gerçek SQL +
+~1000 çöp (şifreli) sayfa = kısmi ransomware/hasar. AMA sistem
+kataloğu (sysschobjs=obj34, syscolpars=obj41) SAĞLAM → şema kurulabilir,
+tipli satır çıkarma mümkün. Sıradaki: kolonlar (syscolpars) + satır.
+
+---
+
+VERİ KURTARMA MERKEZİ — Build 124
+=================================
+
+DÜZELTME + YÖNLENDİRME (SQL modülü):
+- Bug: EMERGENCY yolu önceki denemeden kalan stub dosyasıyla
+  çakışıyordu ("VKM_Recover.mdf zaten var"). Artık stub dosyaları
+  benzersiz çalışma klasöründe → çakışma yok.
+- Yeni: .mdf başlık/boyut düzeyinde bozuksa (truncated / header
+  hasarlı) motor zaten açamaz. Program artık bunu anlayıp açıkça
+  "bu bir B3 vakası, 🔬 Teşhis + 🔎 Hex kullan" diye yönlendiriyor.
+
+---
+
+VERİ KURTARMA MERKEZİ — Build 123
+=================================
+
+B3 BAŞLADI: Hex/Sayfa görüntüleyici + Sayfa Analizi
+---------------------------------------------------
+SQL & Veritabanı penceresine "🔎 Hex / Sayfa" düğmesi eklendi.
+
+🔎 HEX / SAYFA: Seçili dosyayı (.mdf/._MS/.ldf/.bak…) açar:
+  - 8KB SAYFA SAYFA hex gezer (◀ ▶, sayfa no gir + Git)
+  - Sayfa başlığını ÇÖZER: tip (veri/index/IAM/boot…), SlotCnt,
+    FreeData, Pminlen, ObjId, kayıt offsetleri (slot dizisi)
+  - Hex ve başlık KOPYALANABİLİR
+  - "🧬 Sayfa Analizi": tüm dosyayı tarar → sayfa tipi dağılımı +
+    en büyük nesneler (obj id · veri sayfası · ~MB) + tahmini DB adı
+
+Bu B3'ün (motoru baypas eden sayfa-seviyesi okuyucu) temeli. Sonraki
+adım: seçili nesnenin veri sayfalarından KAYITLARI çözüp (şema+satır)
+dışa aktarmak — asıl kurtarma gücü.
+
+Not: Çözülen başlık alanları "yorum" — DBCC PAGE ile doğrulanabilir;
+hex hep yanında. Offsetler gerçek dosyada oynarsa söyle, kalibre ederim.
+
+---
+
+VERİ KURTARMA MERKEZİ — Build 122
+=================================
+
+MODÜL 8 "SQL & Veritabanı" başladı + TEŞHİS motoru (B2)
+-------------------------------------------------------
+Üst bardaki düğme artık "🗄 SQL & Veritabanı". Pencereye "🔬 Teşhis"
+düğmesi eklendi.
+
+🔬 TEŞHİS (yeni): Bir .mdf/._MS/.ldf/.fdb seç → "🔬 Teşhis" bas.
+Dosyayı SALT OKUNUR analiz eder, sınıfını söyler:
+  - FİZİKSEL SAĞLAM (sadece mount sorunu) → .bak yolu
+  - EKSİK/BAD SEKTÖR (kafa, torn page) → sağlam sayfalardan çıkar
+  - RANSOMWARE (entropy yüksek) → şifreli/sağlam bölge haritası
+Entropy + sıfır-run örneklemesi; sürüm tahmini (dbi_version); sorunlu
+bölgelerin MB konumları. Hiçbir şey yazmaz.
+
+Not: Teşhis = teşhis. Asıl kurtarma blokları (sayfa-seviyesi çıkarma,
+ransomware işleyici, silinmiş diskten carving, Firebird) yol haritasında
+sırayla gelecek. Yol haritası Projen'de: "sql-veritabani-yol-haritasi".
+
+Log kutusu bu modülde de kopyalanabilir.
+
+---
+
+VERİ KURTARMA MERKEZİ — Build 121
+=================================
+
+YENİ (121):
+1. ".bak Test Et" düğmesi — üretilen .bak GERÇEKTEN geri yüklenebiliyor
+   mu kontrol eder: RESTORE VERIFYONLY (bütünlük) → geçici DB'ye deneme
+   restore → DBCC CHECKDB (veri tutarlılığı) → tablo sayısı + en büyük
+   tablolar (satır sayısıyla) → geçici DB silinir. "✓✓ TEST GEÇTİ"
+   görürsen .bak sağlam, müşteriye verebilirsin.
+2. Log kutusu artık SEÇİLİP KOPYALANABİLİR (salt okunur ama işlem
+   sırasında da üstüne gelip seç + Ctrl+C ya da sağ tık → Kopyala).
+   Bu kural bundan sonra TÜM modüllerde geçerli olacak.
+
+Kullanım testi: .bak üret → sonra "🔍 .bak Test Et"e bas (BakPath'teki
+.bak'ı test eder; boşsa dosya seçtirir).
+
+--- önceki (120): bağlantı-kapanma bug'ı düzeltildi; her komut kendi
+bağlantısını açıyor, her denemeden önce taze MDF kopyası alınıyor →
+1) LDF ile temiz, olmazsa 2) rebuild-log, olmazsa 3) EMERGENCY+REPAIR.
+
+MSSQL .mdf → .bak  (LocalDB ile)
+--------------------------------------------
+Üst barda mor "🗄 SQL (.mdf→.bak)" düğmesi. Bozuk/eksik .ldf olsa bile
+sağlam .mdf'den geçerli .bak üretir. LocalDB kurulu olmalı (sende kurulu).
+
+İLK DERLEMEDE: VS, NuGet'ten "Microsoft.Data.SqlClient" paketini indirir
+(internet lazım, birkaç saniye). Build -> Rebuild yeterli.
+
+KULLANIM:
+1. 🗄 SQL düğmesine bas. Pencere açılır, "✓ LocalDB hazır" görmelisin
+   (görmüyorsan "Tekrar kontrol").
+2. "Kaynak .mdf" → Gözat → senin ._MS dosyanı seç
+   (Dosya tipinde "Tüm dosyalar" seç ki ._MS görünsün).
+   ÖNCE "MikroDB_V16_PRIME - Copy._MS" (18.12, daha yeni) dene.
+3. ".ldf (varsa)" → yanındaki _log.ldf'yi OTOMATİK bulur. Bulmazsa Gözat.
+4. "Hedef .bak" → nereye kayded'leceğini seç.
+5. "▶ .bak Üret".
+
+MANTIK (otomatik, sırayla):
+1) LDF ile NORMAL bağla → 5 bad sektör pasif log'daysa TEMİZ açılır,
+   VERİ KAYBI YOK (log "✓✓ TEMİZ" yazar).
+2) Olmazsa log'u at, yeniden kur (ATTACH_REBUILD_LOG).
+3) O da olmazsa EMERGENCY + DBCC CHECKDB (REPAIR_ALLOW_DATA_LOSS).
+Sonra BACKUP → .bak. En altta hangi yoldan açıldığını yazar
+(veri kaybı oldu mu anlarsın).
+
+ÖNEMLİ:
+- Dosyaları önce recovery aracından NORMAL bir klasöre kopyala
+  (örn. D:\kurtarma\). Mounted görünüm üstünde çalışmaz.
+- Orijinal .mdf'ye DOKUNULMAZ — program kopya üstünde çalışır.
+- .bak'ı müşterinin SQL Server'ında RESTORE DATABASE ile geri yüklersin.
+- Müşterinin SQL sürümü LocalDB'den (2022) eskiyse .bak geri yüklenmez;
+  öyleyse söyle, LocalDB sürümünü eşitleriz.
+- Bu modülün İLK sürümü, bende test imkanı yok. Hata/çıkmazsa
+  log penceresinin EKRAN GÖRÜNTÜSÜNÜ at, düzeltirim.
+
+---
+
+VERİ KURTARMA MERKEZİ — Build 118
+=================================
+
+BU SÜRÜMDE DÜZELTME: Takılmış DHFS taraması artık HIZLI
+-------------------------------------------------------
+117'de içerik taraması tüm diski baştan sona okuyordu (7.4TB'de ~10 saat).
+Artık ÖRNEKLEME yapıyor: disk boyunca düzenli aralıklarla küçük pencereler
+okur (toplam ~32GB, diskin ~1/230'u) → birkaç dakikada biter.
+CCTV zamanda iç içe kaydettiği için her örnek o anın aktif kanallarını
+yakalar; kanal listesi + tarih aralığı + saatlik kayıtlar çıkar.
+Ekranda "X / Y GB · N saatlik kayıt bulundu" sayacı akar, Durdur çalışır.
+
+NOT: Bu test diskinde video tek kanal (CAM01) — diğer "kanallar" video
+değil (ses/info kareleri), o yüzden listelenmez. Çok-diskli kurulumda
+her disk ayrı kanal tutuyor olabilir (NVR disklerindeki gibi).
+
+---
+
+ÖNCEKİ (Build 116/117): Takılmış DHFS diski kurtarma + derleme düzeltmesi
+=========================================================================
+
+BU SÜRÜMDE YENİ: Takılmış DHFS (Dahua CCTV) diski kurtarma
+----------------------------------------------------------
+Sorun: Bazı DHFS diskler "takılınca" kayıt DİZİNİ (index) silinir
+(0x100000'de hep FE = boş), ama VİDEO sapasağlam durur. Eski sürümde
+program dizini boş bulup "boş disk" diyordu.
+
+Artık: DHFS dizini boş çıkarsa program otomatik olarak VİDEONUN
+İÇİNİ tarar (DHAV kareleri). Her karede kanal + tarih/saat gömülü
+olduğu için kayıt listesini doğrudan videodan yeniden kurar.
+Ortada yeşil % çubuk + GB sayacı çıkar, "■ Durdur" ile durdurulabilir.
+
+KULLANIM (DHFS imajı)
+---------------------
+- İmajı aç. Dizin doluysa eskisi gibi ANINDA listelenir (tarama yok).
+- Dizin boşsa (takılmış disk) otomatik içerik taraması başlar:
+  "DHFS index boş → video içeriğinden taranıyor..." yazar.
+- Bitince CAM klasörleri / gün / saatlik .dav kayıtları gelir.
+- İşaretle -> "Seçilenleri Kaydet" -> oynatılabilir dosya (.dav/.mp4).
+
+NOTLAR
+------
+- İçerik taraması ANLIK DEĞİL (dizin okuma gibi saniyede değil).
+  Diskin boyutuna göre sürer — ama takılmış diskte başka yol yok:
+  video orada, haritası yok, biz haritayı yeniden çıkarıyoruz.
+- Sadece video kareleri (I/P) listelenir; ses/info boş kanal yapmaz.
+- Kaynağa YAZILMAZ; sadece seçtiğin hedefe yazılır.
+
+ÇALIŞTIRMA
+----------
+1. Zip'i YENİ klasöre çıkart.
+2. "VeriKurtarmaMerkezi.sln" -> çift tık (VS YÖNETİCİ olarak açık).
+3. Yeşil ok ▶ (F5).
+   ("_Content.g.cs" hatası olursa: Build -> Clean, sonra Build -> Rebuild.)
+
+Hata/tuhaf sonuç olursa EKRAN GÖRÜNTÜSÜ at, düzeltirim.

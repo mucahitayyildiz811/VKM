@@ -1,0 +1,108 @@
+<UserControl x:Class="VKM.App.ImagerPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:VKM.App"
+             Background="{DynamicResource BrBg}">
+    <UserControl.Resources>
+        <Style x:Key="Tb" TargetType="Button">
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="Padding" Value="12,0"/>
+            <Setter Property="Margin" Value="0,0,6,0"/>
+            <Setter Property="Background" Value="{DynamicResource BrBtn}"/>
+            <Setter Property="Foreground" Value="{DynamicResource BrText}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BrLine}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        <Style x:Key="TbMain" TargetType="Button" BasedOn="{StaticResource Tb}">
+            <Setter Property="Background" Value="{DynamicResource BrAccent}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- CASE başlık -->
+        <Border Grid.Row="0" Background="{DynamicResource BrCard}" BorderBrush="{DynamicResource BrLine}" BorderThickness="0,0,0,1" Padding="14,9">
+            <Grid>
+                <StackPanel Orientation="Horizontal">
+                    <StackPanel>
+                        <TextBlock x:Name="CaseNo" Text="İş yok" FontWeight="Bold" FontSize="14" Foreground="{DynamicResource BrText}"/>
+                        <TextBlock x:Name="CaseName" Text="— Yeni İş ile numara ve isim gir" FontSize="11.5" Foreground="{DynamicResource BrDim}"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="22,0,0,0" x:Name="DevBox"/>
+                </StackPanel>
+                <TextBlock x:Name="TempLbl" HorizontalAlignment="Right" VerticalAlignment="Center" Text="" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource BrBad}"/>
+            </Grid>
+        </Border>
+
+        <!-- araç çubuğu -->
+        <Border Grid.Row="1" Background="{DynamicResource BrPanel}" BorderBrush="{DynamicResource BrLine}" BorderThickness="0,0,0,1" Padding="12,8">
+            <WrapPanel>
+                <Button x:Name="NewCaseBtn" Content="＋ Yeni İş" Style="{StaticResource TbMain}" Click="NewCase_Click"/>
+                <Button x:Name="OpenCaseBtn" Content="📂 Eski İş Aç" Style="{StaticResource Tb}" Click="OpenOld_Click"/>
+                <Button x:Name="StartBtn" Content="▶ Başlat" Style="{StaticResource TbMain}" Click="Start_Click" IsEnabled="False"/>
+                <Button x:Name="PauseBtn" Content="⏸ Duraklat" Style="{StaticResource Tb}" Click="Pause_Click" IsEnabled="False"/>
+                <Button x:Name="StopBtn" Content="⏹ Durdur" Style="{StaticResource Tb}" Click="Stop_Click" IsEnabled="False"/>
+                <Button x:Name="RetryBtn" Content="↻ Arızalıları yeniden dene" Style="{StaticResource Tb}" Click="Retry_Click" IsEnabled="False"/>
+                <StackPanel Orientation="Horizontal" Margin="6,0,10,0" VerticalAlignment="Center">
+                    <TextBlock Text="Hız" Foreground="{DynamicResource BrDim}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <Slider x:Name="SpeedSlider" Width="110" Minimum="0" Maximum="200" Value="0" VerticalAlignment="Center" ValueChanged="Speed_Changed"/>
+                    <TextBlock x:Name="SpeedTxt" Text="hızlı" Foreground="{DynamicResource BrDim}" VerticalAlignment="Center" Margin="6,0,0,0" Width="70"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,0,10,0" VerticalAlignment="Center">
+                    <TextBlock Text="Kafa" Foreground="{DynamicResource BrDim}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <ComboBox x:Name="HeadCountBox" Width="56" Height="28" VerticalContentAlignment="Center"/>
+                </StackPanel>
+                <CheckBox x:Name="RevChk" Content="Ters oku" Foreground="{DynamicResource BrText}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+            </WrapPanel>
+        </Border>
+
+        <!-- harita + kafalar -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <Border Grid.Column="0" Background="{DynamicResource BrCard}" Margin="10" CornerRadius="6" ClipToBounds="True">
+                <Image x:Name="MapImage" Stretch="Fill" RenderOptions.BitmapScalingMode="NearestNeighbor"
+                       MouseMove="Map_Move" MouseLeave="Map_Leave" MouseLeftButtonDown="Map_Click" Cursor="Cross"/>
+            </Border>
+            <Border Grid.Column="1" Background="{DynamicResource BrPanel}" BorderBrush="{DynamicResource BrLine}" BorderThickness="1,0,0,0" Width="76">
+                <StackPanel Margin="8">
+                    <TextBlock Text="KAFALAR" FontSize="10" FontWeight="Bold" Foreground="{DynamicResource BrDim}" TextAlignment="Center" Margin="0,2,0,8"/>
+                    <StackPanel x:Name="HeadsPanel"/>
+                    <TextBlock Text="tıkla: aç/kapat" FontSize="9.5" Foreground="{DynamicResource BrDim}" TextAlignment="Center" Margin="0,8,0,0" TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- durum -->
+        <Border Grid.Row="3" Background="{DynamicResource BrCard}" BorderBrush="{DynamicResource BrLine}" BorderThickness="0,1,0,0" Padding="14,7">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="LBA " Foreground="{DynamicResource BrDim}"/><TextBlock x:Name="LbaLbl" Text="—" FontFamily="Consolas" FontWeight="Bold" Foreground="{DynamicResource BrText}"/>
+                <TextBlock Text="   Kafa " Foreground="{DynamicResource BrDim}"/><TextBlock x:Name="HeadLbl" Text="—" FontWeight="Bold" Foreground="{DynamicResource BrAccentText}"/>
+                <TextBlock Text="   Okunan " Foreground="{DynamicResource BrDim}"/><TextBlock x:Name="OkLbl" Text="0" FontWeight="Bold" Foreground="{DynamicResource BrOk}"/>
+                <TextBlock Text="   Arızalı " Foreground="{DynamicResource BrDim}"/><TextBlock x:Name="BadLbl" Text="0" FontWeight="Bold" Foreground="{DynamicResource BrBad}"/>
+                <Border Width="260" Height="8" CornerRadius="4" Background="{DynamicResource BrLine}" Margin="18,0,8,0" VerticalAlignment="Center">
+                    <Border x:Name="ProgFill" HorizontalAlignment="Left" Width="0" Background="{DynamicResource BrOk}" CornerRadius="4"/>
+                </Border>
+                <TextBlock x:Name="PctLbl" Text="0%" Foreground="{DynamicResource BrDim}" VerticalAlignment="Center"/>
+                <TextBlock x:Name="MbpsLbl" Text="" Foreground="{DynamicResource BrDim}" VerticalAlignment="Center" Margin="14,0,0,0" FontFamily="Consolas"/>
+            </StackPanel>
+        </Border>
+
+        <!-- lejant -->
+        <Border Grid.Row="4" Background="{DynamicResource BrPanel}" BorderBrush="{DynamicResource BrLine}" BorderThickness="0,1,0,0" Padding="14,6">
+            <WrapPanel x:Name="Legend"/>
+        </Border>
+    </Grid>
+</UserControl>

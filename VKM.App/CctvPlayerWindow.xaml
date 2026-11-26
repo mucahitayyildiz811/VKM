@@ -1,0 +1,32 @@
+<Window x:Class="VKM.App.CctvPlayerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vlc="clr-namespace:LibVLCSharp.WPF;assembly=LibVLCSharp.WPF"
+        Title="CCTV Oynatıcı" Height="660" Width="980" Background="{DynamicResource BrConsoleBg}"
+        WindowStartupLocation="CenterScreen">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <vlc:VideoView x:Name="VideoView" Grid.Row="0" Background="Black"/>
+
+        <Border Grid.Row="1" Background="{DynamicResource BrPanel}" Padding="8,6">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <Button x:Name="PlayBtn" Grid.Column="0" Content="⏸" Click="Play_Click"
+                        Width="42" Height="32" FontSize="15" Margin="0,0,8,0"
+                        Background="{DynamicResource BrAccent}" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                <Slider x:Name="Seek" Grid.Column="1" Minimum="0" Maximum="1000" VerticalAlignment="Center"
+                        Thumb.DragStarted="Seek_DragStarted" Thumb.DragCompleted="Seek_DragCompleted"/>
+                <TextBlock x:Name="TimeText" Grid.Column="2" Foreground="{DynamicResource BrConsoleTx}" FontSize="12.5"
+                           VerticalAlignment="Center" Margin="10,0,0,0" Text="00:00 / 00:00"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
