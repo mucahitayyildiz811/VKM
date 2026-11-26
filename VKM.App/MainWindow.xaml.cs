@@ -18,7 +18,6 @@ namespace VKM.App
         public MainWindow()
         {
             InitializeComponent();
-            DiskList.ItemsSource = Disks;
             CctvDiskList.ItemsSource = Disks;   // CCTV modülü aynı disk listesini gösterir
             BuildModules();
             LoadDisks();
@@ -41,6 +40,9 @@ namespace VKM.App
             LogList.ItemsSource = Log.Items;
             Log.Added += () => { LogCount.Text = Log.Items.Count > 0 ? "(" + Log.Items.Count + ")" : ""; LogScroll.ScrollToEnd(); };
             Log.Info("Veri Kurtarma Merkezi hazır.");
+
+            // Sol UFS ağacı = RAID paneli (disk → bölüm → üyelerin altında dizi); açılan düğüm sağda sekmede
+            DevTree.Init(Disks, (open, len, title, drives) => AddRecoveryTab(new RecoveryWindow(open, len, title, drives), title, null));
         }
 
         private double _logH = 170;
@@ -62,23 +64,10 @@ namespace VKM.App
         }
 
         // iş açıkken solda sadece o diski göster; iş kapanınca (null) hepsini geri getir
-        public void FocusDisk(DiskInfo? d)
-        {
-            if (DiskList == null) return;
-            if (d == null) { DiskList.ItemsSource = Disks; }
-            else { DiskList.ItemsSource = new System.Collections.Generic.List<DiskInfo> { d }; }
-        }
+        public void FocusDisk(DiskInfo? d) { }   // (UFS ağacı sabit kalır)
 
         // iş/sekme açıkken sol disk panelini tamamen gizle (temiz ekran); hepsi kapanınca geri getir
-        private void UpdateDiskPanel()
-        {
-            bool busy = MainTabs != null && MainTabs.Items.Count > 0;
-            if (DiskCol != null) DiskCol.Width = busy ? new GridLength(0) : new GridLength(300);
-            if (DiskPanel != null) DiskPanel.Visibility = busy ? Visibility.Collapsed : Visibility.Visible;
-        }
-
-        // Veri Kurtarma içinden RAID/diziler ağacını aç (ayrı modül değil)
-        private void RaidView_Click(object sender, RoutedEventArgs e) => OnModule("raid");
+        private void UpdateDiskPanel() { }
 
         // UFS gibi temiz disk adı: baştaki "ATA", sondaki "SCSI Disk Device / USB Device" vb. gürültüyü at
         static string CleanModel(string m)
@@ -336,8 +325,7 @@ namespace VKM.App
         // Modül seçimi (sol ray)
         private void OnModule(string tag)
         {
-            if (ModuleStub == null || VeriKurtarmaPanel == null || CctvPanel == null || SqlPanel == null || RaidPanelCtl == null) return;   // kurulum anında koruma
-            RaidPanelCtl.Visibility = tag == "raid" ? Visibility.Visible : Visibility.Collapsed;
+            if (ModuleStub == null || VeriKurtarmaPanel == null || CctvPanel == null || SqlPanel == null) return;   // kurulum anında koruma
             if (ImagerPanelCtl != null) ImagerPanelCtl.Visibility = tag == "imajal" ? Visibility.Visible : Visibility.Collapsed;
             if (tag == "imajal")
             {
@@ -348,17 +336,6 @@ namespace VKM.App
                 ImagerPanelCtl?.Init(Disks, (open, len, title, drives) => OpenBrowseWindow(open, len, title, drives));
                 return;
             }
-            if (tag == "raid")
-            {
-                VeriKurtarmaPanel.Visibility = Visibility.Collapsed;
-                CctvPanel.Visibility = Visibility.Collapsed;
-                SqlPanel.Visibility = Visibility.Collapsed;
-                ModuleStub.Visibility = Visibility.Collapsed;
-                RaidPanelCtl.Init(Disks, (open, len, title, drives) => AddRecoveryTab(new RecoveryWindow(open, len, title, drives), title, null));
-                RaidPanelCtl.BackToDisks = () => OnModule("veri");
-                return;
-            }
-
             if (tag == "veri")
             {
                 VeriKurtarmaPanel.Visibility = Visibility.Visible;
@@ -500,14 +477,14 @@ namespace VKM.App
                 string tail = anySmart
                     ? ""
                     : "   (SMART değerleri için: Visual Studio'yu ya da .exe'yi 'Yönetici olarak çalıştır'.)";
-                StatusText.Text = count + " disk bulundu  ·  " + DateTime.Now.ToString("HH:mm:ss") + tail;
+                // disk sayısı log'a düşer
                 Log.Info(count + " disk bulundu.");
 
                 DetectPartitionFsAsync();
             }
             catch (Exception ex)
             {
-                StatusText.Text = "Diskler okunamadı: " + ex.Message;
+                Log.Bad("Diskler okunamadı: " + ex.Message);
             }
         }
 

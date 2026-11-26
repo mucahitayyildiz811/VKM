@@ -107,7 +107,6 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <WrapPanel Grid.Column="0">
-                    <Button Content="⟵ Diskler" Style="{StaticResource Btn}" Click="Back_Click" ToolTip="Veri Kurtarma / disk listesine dön"/>
                     <Button x:Name="ScanBtn" Content="🔄 Diskleri tara · RAID bul" Style="{StaticResource BtnMain}" Click="Scan_Click"
                             ToolTip="Tüm diskleri okur (salt okunur), RAID/NAS/LVM yapılarını otomatik kurar. Üst verisi olmayan eş boyutlu diskleri çözücüyle çözer."/>
                     <Button Content="＋ İmaj ekle" Style="{StaticResource Btn}" Click="AddImage_Click" ToolTip="RAID üyesi olarak disk imajı ekle (.img/.dd/.bin/.raw/.001)"/>
