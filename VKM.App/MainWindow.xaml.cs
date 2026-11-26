@@ -23,6 +23,14 @@ namespace VKM.App
             LoadDisks();
         }
 
+        // Pencere kapanınca arka plan iş parçacıkları kalmasın, süreç tam kapansın
+        // (yoksa .exe bellekte takılır ve bir sonraki derlemede dosya kilidi hatası verir)
+        protected override void OnClosed(EventArgs e)
+        {
+            base.OnClosed(e);
+            Environment.Exit(0);
+        }
+
         private bool _autoScanned;
         private void BuildModules()
         {
