@@ -110,9 +110,9 @@
               <!-- Veri Kurtarma modülü -->
               <Grid x:Name="VeriKurtarmaPanel">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="480" MinWidth="320"/>
-                    <ColumnDefinition Width="6"/>
-                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition x:Name="DevCol" Width="*" MinWidth="320"/>
+                    <ColumnDefinition x:Name="MidCol" Width="0"/>
+                    <ColumnDefinition x:Name="TabCol" Width="0"/>
                 </Grid.ColumnDefinitions>
 
             <local:RaidPanel x:Name="DevTree" Grid.Column="0"/>

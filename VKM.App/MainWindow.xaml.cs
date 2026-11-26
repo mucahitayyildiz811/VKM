@@ -52,6 +52,7 @@ namespace VKM.App
 
             // Sol UFS ağacı = RAID paneli (disk → bölüm → üyelerin altında dizi); açılan düğüm sağda sekmede
             DevTree.Init(Disks, (open, len, title, drives) => AddRecoveryTab(new RecoveryWindow(open, len, title, drives), title, null));
+            UpdateDiskPanel();
         }
 
         private double _logH = 170;
@@ -76,7 +77,14 @@ namespace VKM.App
         public void FocusDisk(DiskInfo? d) { }   // (UFS ağacı sabit kalır)
 
         // iş/sekme açıkken sol disk panelini tamamen gizle (temiz ekran); hepsi kapanınca geri getir
-        private void UpdateDiskPanel() { }
+        private void UpdateDiskPanel()
+        {
+            if (DevCol == null || TabCol == null || MidCol == null) return;
+            bool busy = MainTabs != null && MainTabs.Items.Count > 0;
+            DevCol.Width = busy ? new GridLength(480) : new GridLength(1, GridUnitType.Star);
+            MidCol.Width = new GridLength(busy ? 6 : 0);
+            TabCol.Width = busy ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        }
 
         // UFS gibi temiz disk adı: baştaki "ATA", sondaki "SCSI Disk Device / USB Device" vb. gürültüyü at
         static string CleanModel(string m)

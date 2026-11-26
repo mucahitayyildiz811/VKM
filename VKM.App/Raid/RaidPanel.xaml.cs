@@ -191,6 +191,13 @@ namespace VKM.App
         }
 
         // ---------------- tarama ----------------
+        private void LogToggle_Click(object sender, RoutedEventArgs e)
+        {
+            bool show = LogRow.Height.Value < 1;
+            LogSplitRow.Height = new GridLength(show ? 6 : 0);
+            LogRow.Height = new GridLength(show ? 170 : 0);
+        }
+
         public void AutoScan() { if (_disks != null && _disks.Count > 0 && ScanBtn.IsEnabled) Scan_Click(this, new RoutedEventArgs()); }
 
         private void Scan_Click(object sender, RoutedEventArgs e)

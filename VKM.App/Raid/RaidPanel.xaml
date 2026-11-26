@@ -95,8 +95,8 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="6"/>
-            <RowDefinition Height="{Binding LogH, Source={StaticResource Cols}, Mode=TwoWay}" MinHeight="40"/>
+            <RowDefinition x:Name="LogSplitRow" Height="0"/>
+            <RowDefinition x:Name="LogRow" Height="0" MinHeight="0"/>
         </Grid.RowDefinitions>
 
         <!-- Üst çubuk -->
@@ -117,6 +117,7 @@
                     <Button x:Name="StopBtn" Content="■ Durdur" Style="{StaticResource Btn}" Click="Stop_Click" IsEnabled="False"/>
                     <Button Content="◧ Ayrıntı paneli" Style="{StaticResource Btn}" Click="TogglePanel_Click" ToolTip="Sağdaki ayrıntı panelini aç / kapat"/>
                     <Button Content="↺ Düzeni sıfırla" Style="{StaticResource Btn}" Click="ResetLayout_Click" ToolTip="Sütun ve panel genişliklerini varsayılana döndür"/>
+                    <Button x:Name="LogToggleBtn" Content="📋 Log" Style="{StaticResource Btn}" Click="LogToggle_Click" ToolTip="Alt günlüğü göster / gizle"/>
                 </WrapPanel>
                 <TextBlock Grid.Column="1" x:Name="StatusText" Foreground="{DynamicResource BrDim}" VerticalAlignment="Center" Margin="10,0,4,6" FontSize="12"/>
             </Grid>
@@ -234,7 +235,7 @@
         <GridSplitter Grid.Row="2" Height="6" HorizontalAlignment="Stretch" Background="{DynamicResource BrLine}" Cursor="SizeNS" ToolTip="Sürükle: log alanını büyüt / küçült"/>
 
         <!-- Log (yeşil, kopyalanabilir) -->
-        <TextBox Grid.Row="3" x:Name="LogBox" IsReadOnly="True" Background="{DynamicResource BrConsoleBg}" Foreground="{DynamicResource BrConsoleFg}" BorderThickness="0"
+        <TextBox Grid.Row="3" x:Name="LogBox" IsReadOnly="True" Background="{DynamicResource BrPanel}" Foreground="{DynamicResource BrText2}" BorderBrush="{DynamicResource BrLine}" BorderThickness="0,1,0,0"
                  FontFamily="Consolas" FontSize="12" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Padding="10,6"/>
     </Grid>
 </UserControl>
