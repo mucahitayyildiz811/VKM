@@ -23,6 +23,7 @@ namespace VKM.App
             LoadDisks();
         }
 
+        private bool _autoScanned;
         private void BuildModules()
         {
             ModuleBar.AddModule("veri", "🔍", "Veri Kurtarma");
@@ -479,6 +480,7 @@ namespace VKM.App
                     : "   (SMART değerleri için: Visual Studio'yu ya da .exe'yi 'Yönetici olarak çalıştır'.)";
                 // disk sayısı log'a düşer
                 Log.Info(count + " disk bulundu.");
+                if (!_autoScanned) { _autoScanned = true; Dispatcher.BeginInvoke(() => DevTree?.AutoScan()); }
 
                 DetectPartitionFsAsync();
             }
