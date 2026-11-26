@@ -82,7 +82,7 @@
                         </Border>
                         <!-- harita -->
                         <Border Background="{DynamicResource BrCard}" BorderBrush="{DynamicResource BrLine}" BorderThickness="1" CornerRadius="8">
-                            <Image x:Name="MapImage" Stretch="None" HorizontalAlignment="Left" VerticalAlignment="Top" RenderOptions.BitmapScalingMode="NearestNeighbor" Margin="4"/>
+                            <Image x:Name="MapImage" Stretch="Fill" RenderOptions.BitmapScalingMode="NearestNeighbor" Margin="4"/>
                         </Border>
                     </DockPanel>
                 </TabItem>

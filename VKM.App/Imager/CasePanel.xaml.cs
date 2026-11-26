@@ -103,7 +103,7 @@ namespace VKM.App
             if (W < CELL || H < CELL) return;
             int cols = W / CELL, rows = H / CELL;
             if (cols < 1 || rows < 1) return;
-            int cnt = cols * rows, bw = cols * CELL, bh = rows * CELL;
+            int cnt = cols * rows, bw = W, bh = H;   // bitmap = panelin tamamı; kareler içine çizilir, kenar boşluğu zemin
             if (_bmp == null || bw != _bw || bh != _bh)
             {
                 _bw = bw; _bh = bh;
