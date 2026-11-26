@@ -191,7 +191,7 @@ namespace VKM.App
         }
 
         // ---------------- tarama ----------------
-        public void AutoScan() { if (_disks != null && _disks.Count > 0 && !Busy) Scan_Click(this, new RoutedEventArgs()); }
+        public void AutoScan() { if (_disks != null && _disks.Count > 0 && ScanBtn.IsEnabled) Scan_Click(this, new RoutedEventArgs()); }
 
         private void Scan_Click(object sender, RoutedEventArgs e)
         {
