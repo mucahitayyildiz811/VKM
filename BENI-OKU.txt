@@ -554,3 +554,5 @@ NOTLAR
    ("_Content.g.cs" hatası olursa: Build -> Clean, sonra Build -> Rebuild.)
 
 Hata/tuhaf sonuç olursa EKRAN GÖRÜNTÜSÜ at, düzeltirim.
+
+[2026-11-26] GitHub otomatik derleme (CI) aktif — her push sonrası Windows makinesinde derlenir.
