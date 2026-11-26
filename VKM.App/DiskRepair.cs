@@ -10,7 +10,7 @@ namespace VKM.App
         // diske yeniden değerlendirtir → Pending (197) temizlenir, gerekirse remap olur.
         // Veri KAYBI YOK (aynı bayt geri yazılır). Bağlı/kilitli bölge varsa o blok atlanır.
         public static void Refresh(string deviceId, long total, int sector,
-                                   Action<long written, long failed, long done, long blocks> report,
+                                   Action<long, long, long, long> report,
                                    Func<bool> cancel)
         {
             if (sector < 512) sector = 512;
