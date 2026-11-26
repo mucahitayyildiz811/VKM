@@ -83,6 +83,48 @@ namespace VKM.App
             report();
         }
 
+        // HIZLI ÖRNEKLEME: tam tarama yerine ~24 noktadan 1 MB okur (saniyeler). Bad NEREDE, kabaca söyler.
+        public static (int bad, int slow, int total, string where) QuickSample(Func<Stream> open, long total, int sector)
+        {
+            const int points = 24;
+            if (sector < 512) sector = 512;
+            long chunk = 1L * 1024 * 1024;
+            if (total < chunk * 2) chunk = Math.Max(sector, total / 8 / sector * sector);
+            int bad = 0, slow = 0;
+            var badFrac = new System.Collections.Generic.List<double>();
+            Stream? s = null;
+            try { s = open(); } catch { return (points, 0, points, "disk açılamadı"); }
+            var buf = new byte[chunk];
+            try
+            {
+                for (int i = 0; i < points; i++)
+                {
+                    double frac = points == 1 ? 0 : (double)i / (points - 1);
+                    long off = (long)(frac * (total - chunk)); off = (off / sector) * sector; if (off < 0) off = 0;
+                    try
+                    {
+                        s.Seek(off, SeekOrigin.Begin);
+                        var sw = System.Diagnostics.Stopwatch.StartNew();
+                        int read = 0; while (read < buf.Length) { int n = s.Read(buf, read, buf.Length - read); if (n <= 0) break; read += n; }
+                        sw.Stop();
+                        if (read < buf.Length || sw.ElapsedMilliseconds >= 1500) { bad++; badFrac.Add(frac); }
+                        else if (sw.ElapsedMilliseconds >= 80) slow++;
+                    }
+                    catch { bad++; badFrac.Add(frac); }
+                }
+            }
+            finally { try { s.Dispose(); } catch { } }
+
+            string where = "yok";
+            if (badFrac.Count > 0)
+            {
+                double lo = double.MaxValue, hi = double.MinValue;
+                foreach (var f in badFrac) { if (f < lo) lo = f; if (f > hi) hi = f; }
+                where = lo >= 0.65 ? "SONDA" : hi <= 0.35 ? "BAŞTA" : (hi - lo) <= 0.35 ? "ORTADA (kümeli)" : "DAĞINIK";
+            }
+            return (bad, slow, points, where);
+        }
+
         public long LbaOf(long block) => block * BlockBytes / Sector;
         public (long start, long end) RangeOf(long block)
         {

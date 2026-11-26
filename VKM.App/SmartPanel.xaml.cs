@@ -60,6 +60,87 @@ namespace VKM.App
             };
         }
 
+        // ---------------- Oto-Teşhis: SMART + tür + öz-test + hızlı yüzey → tek karar ----------------
+        private bool _diagBusy;
+        private async void AutoDiag_Click(object sender, RoutedEventArgs e)
+        {
+            if (_diagBusy) return;
+            if (DiskCombo.SelectedItem is not DiskInfo d) { MessageBox.Show("Önce bir disk seç."); return; }
+            _diagBusy = true;
+            var btn = sender as Button; var old = btn?.Content;
+            if (btn != null) { btn.IsEnabled = false; btn.Content = "⏳ Teşhis…"; }
+
+            string dev = d.DeviceId, pnp = d.Pnp ?? "", model = d.Model;
+            long total = (long)d.SizeBytes; int sector = d.BytesPerSector <= 0 ? 512 : d.BytesPerSector;
+            Log.Info("Oto-Teşhis: " + model + " başladı");
+
+            string verdict = await Task.Run(() => BuildAutoDiag(dev, pnp, model, total, sector));
+
+            if (btn != null) { btn.IsEnabled = true; btn.Content = old ?? "🔍 Oto-Teşhis"; }
+            _diagBusy = false;
+            Log.Ok("Oto-Teşhis: " + model + " bitti");
+            MessageBox.Show(verdict, "🔍 Oto-Teşhis — " + model, MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        private static string BuildAutoDiag(string dev, string pnp, string model, long total, int sector)
+        {
+            var sb = new System.Text.StringBuilder();
+            SmartData? sd = null;
+            try { var map = SmartReader.ReadAll(); map.TryGetValue(SmartReader.Norm(pnp), out sd); } catch { }
+            if (sd == null || !sd.HasData || sd.Attrs.Count == 0) { try { sd = SmartReader.ReadViaAta(dev); } catch { } }
+            var id = AtaSmart.Identify(dev);
+            int stB = AtaSmart.SelfTestStatusByte(dev);
+            bool ssd = id.HasValue && id.Value.rotation == 1;
+
+            sb.Append("Tür: ").Append(id.HasValue ? (id.Value.rotation == 1 ? "SSD" : id.Value.rotation > 1 ? "HDD " + id.Value.rotation + " RPM" : "disk") : "?")
+              .Append("   ·   Kapasite: ").Append(Fmt(total)).Append("\n\n");
+
+            string health;
+            if (sd != null && sd.HasData && sd.Attrs.Count > 0)
+            {
+                health = DiagnoseHealth(sd, ssd, stB);
+                sb.Append("SMART: ").Append(sd.PredictFailure ? "⚠ ARIZA TAHMİNİ" : "✓ normal")
+                  .Append("   realloc ").Append(sd.Reallocated?.ToString() ?? "-")
+                  .Append("   pending ").Append(sd.Pending?.ToString() ?? "-")
+                  .Append("   CRC ").Append(sd.Crc?.ToString() ?? "-").Append("\n");
+                string stTxt = SelfTestText(stB);
+                if (stTxt.Length > 0) sb.Append(stTxt).Append("\n");
+            }
+            else { health = "SMART okunamadı (SAS/RAID denetleyici ya da USB köprüsü olabilir)."; sb.Append("SMART: okunamadı\n"); }
+
+            var (bad, slow, tot, where) = SurfaceScan.QuickSample(() => PhysicalDisk.OpenReadOnly(dev, total, sector), total, sector);
+            if (where == "disk açılamadı") sb.Append("Yüzey: disk açılamadı (yönetici gerekir ya da disk kullanımda — çevrimdışı yap).\n");
+            else if (bad == 0 && slow == 0) sb.Append("Yüzey (hızlı örnek · ").Append(tot).Append(" nokta): ✓ temiz\n");
+            else if (bad == 0) sb.Append("Yüzey (hızlı örnek): ").Append(slow).Append(" zayıf nokta, bad yok\n");
+            else sb.Append("Yüzey (hızlı örnek): ").Append(bad).Append("/").Append(tot).Append(" noktada BAD · konum: ").Append(where).Append("\n");
+
+            sb.Append("\n🧠 TANI: ").Append(health).Append("\n");
+            sb.Append("\n➡ ÖNERİ: ").Append(CombineVerdict(sd, ssd, bad, tot, where));
+            sb.Append("\n\n(Hızlı örnek tam tarama değildir — kesin harita/karar için 'Yüzey Tara'.)");
+            return sb.ToString();
+        }
+
+        // SMART + hızlı yüzey konumunu TEK eyleme indirger
+        private static string CombineVerdict(SmartData? sd, bool ssd, int bad, int tot, string where)
+        {
+            bool predict = sd != null && sd.PredictFailure;
+            ulong realloc = sd?.Reallocated ?? 0, pending = sd?.Pending ?? 0, crc = sd?.Crc ?? 0;
+            if (predict) return ssd ? "Disk ölüyor → ÖNCE veriyi yeni SSD'ye klonla, sonra kullanma." : "Disk ölüyor → ÖNCE veriyi kurtar/klonla; maskeleme çözmez.";
+            if (where == "disk açılamadı") return "Diske erişilemedi — yönetici olarak aç ya da diski çevrimdışı yap, tekrar dene.";
+            if (bad > 0)
+            {
+                double badRatio = tot > 0 ? bad / (double)tot : 0;
+                if (badRatio > 0.3) return "Hızlı örnekte yaygın bad → ağır hasar. ÖNCE veriyi kurtar, sonra karar ver.";
+                if (where == "SONDA") return ssd ? "Bad sonda → veriyi al; SSD'de HPA genelde çözmez, klonla." : "Bad diskin SONUNDA → 'Yüzey Tara' ile doğrula, sonra '✂ HPA Kes' → kalan %100 (geri alınabilir).";
+                if (where == "BAŞTA") return "Bad diskin BAŞINDA (servo/çeviri alanına yakın) → riskli, önce veriyi kurtar.";
+                return ssd ? "Dağınık bad (SSD) → NAND yıpranıyor, klonla." : "Dağınık/orta bad → 'Yüzey Tara' ile haritala; azsa REMAP (kapasite aynı), çoksa vendor/kafa dışlama.";
+            }
+            if (crc > 0 && realloc == 0 && pending == 0) return "Yüzey temiz ama CRC var → KABLO/port değiştir, tekrar ölç (disk büyük ihtimalle sağlam).";
+            if (pending > 0 && realloc == 0) return "Yüzey hızlı örnekte temiz ama pending var → ♻ Refresh (kapasite aynı), sonra tekrar ölç.";
+            if (realloc > 0) return ssd ? "Örnekte temiz; realloc birikmiş → yedekle ve izle." : "Hızlı örnek temiz ama realloc var → tam 'Yüzey Tara' ile doğrula.";
+            return "Disk sağlıklı görünüyor → işlem gerekmez. (performans sorunu varsa tam Yüzey Tara + kablo kontrol)";
+        }
+
         private void Reset_Click(object sender, RoutedEventArgs e)
         {
             MessageBox.Show(
