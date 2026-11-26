@@ -19,6 +19,13 @@
                 <Button x:Name="ResetBtn" Content="⚠ SMART sıfırla" Click="Reset_Click" Height="30" Margin="10,0,0,0" Padding="12,0" Cursor="Hand"
                         Background="{DynamicResource BrBtn}" Foreground="{DynamicResource BrText}" BorderBrush="{DynamicResource BrLine}" BorderThickness="1"
                         ToolTip="Üretici-özel — WD/Seagate adımında"/>
+                <Border Width="1" Background="{DynamicResource BrLine}" Margin="12,4"/>
+                <Button Content="🔬 Kısa test" Click="SelfTestShort_Click" Height="30" Margin="0,0,0,0" Padding="12,0" Cursor="Hand"
+                        Background="{DynamicResource BrBtn}" Foreground="{DynamicResource BrText}" BorderBrush="{DynamicResource BrLine}" BorderThickness="1"
+                        ToolTip="SMART kısa öz-test (1-2 dk, diskte arka planda)"/>
+                <Button Content="🔬 Uzun test" Click="SelfTestLong_Click" Height="30" Margin="8,0,0,0" Padding="12,0" Cursor="Hand"
+                        Background="{DynamicResource BrBtn}" Foreground="{DynamicResource BrText}" BorderBrush="{DynamicResource BrLine}" BorderThickness="1"
+                        ToolTip="SMART uzun öz-test (tüm yüzey, saatler sürebilir)"/>
             </StackPanel>
         </Border>
 

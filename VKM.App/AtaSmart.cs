@@ -62,6 +62,46 @@ namespace VKM.App
         public static byte[]? ReadBlock(string deviceId, byte feature)
             => DataIn(deviceId, 0xB0, feature, 0x4F, 0xC2);
 
+        // SMART öz-testi başlat (EXECUTE OFFLINE IMMEDIATE). sub: 0x01 kısa, 0x02 uzun. Diskte arka planda çalışır.
+        public static bool StartSelfTest(string deviceId, byte sub)
+            => NonData(deviceId, 0xD4, sub, 0x4F, 0xC2, 0xB0);
+
+        // Öz-test durumu: SMART DATA byte 363. (durum<<4, kalan% = (x&0xF)*10). -1 okunamadı.
+        public static int SelfTestStatusByte(string deviceId)
+        {
+            var d = ReadBlock(deviceId, 0xD0);
+            return d != null && d.Length > 363 ? d[363] : -1;
+        }
+
+        // Veri taşımayan ATA komutu (öz-test başlatma gibi)
+        static bool NonData(string deviceId, byte feature, byte lbaLow, byte lbaMid, byte lbaHigh, byte command)
+        {
+            SafeFileHandle? h = null;
+            try
+            {
+                h = CreateFileW(deviceId, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_RW, IntPtr.Zero, OPEN_EXISTING, 0, IntPtr.Zero);
+                if (h.IsInvalid) return false;
+                var p = new APTD
+                {
+                    Length = (ushort)Marshal.SizeOf<APTD>(),
+                    AtaFlags = ATA_FLAGS_DRDY_REQUIRED,
+                    DataTransferLength = 0,
+                    TimeOutValue = 15,
+                    DataBuffer = IntPtr.Zero,
+                    CurrentTaskFile = new byte[8],
+                    PreviousTaskFile = new byte[8]
+                };
+                p.CurrentTaskFile[0] = feature;
+                p.CurrentTaskFile[2] = lbaLow;
+                p.CurrentTaskFile[3] = lbaMid;
+                p.CurrentTaskFile[4] = lbaHigh;
+                p.CurrentTaskFile[6] = command;
+                return DeviceIoControl(h, IOCTL_ATA_PASS_THROUGH_DIRECT, ref p, p.Length, ref p, p.Length, out _, IntPtr.Zero);
+            }
+            catch { return false; }
+            finally { h?.Dispose(); }
+        }
+
         // 512 baytlık veri-giriş ATA komutu (SMART / IDENTIFY ortak yolu)
         static byte[]? DataIn(string deviceId, byte command, byte feature, byte lbaMid, byte lbaHigh)
         {

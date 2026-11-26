@@ -29,6 +29,37 @@ namespace VKM.App
         private void Disk_Changed(object sender, SelectionChangedEventArgs e) { Load(); ResetSurf(); }
         private void Refresh_Click(object sender, RoutedEventArgs e) => Load();
 
+        private void SelfTestShort_Click(object sender, RoutedEventArgs e) => StartSelfTest(0x01, "Kısa öz-test başladı (~1-2 dk, diskte arka planda). Sonucu 'Yenile' ile Öznitelikler'de gör.");
+        private void SelfTestLong_Click(object sender, RoutedEventArgs e) => StartSelfTest(0x02, "Uzun öz-test başladı (tüm yüzey, saatler sürebilir). Disk kullanılabilir; durumu 'Yenile' ile izle.");
+
+        private void StartSelfTest(byte sub, string msg)
+        {
+            if (DiskCombo.SelectedItem is not DiskInfo d) { MessageBox.Show("Önce bir disk seç."); return; }
+            if (AtaSmart.StartSelfTest(d.DeviceId, sub)) MessageBox.Show(msg, "Öz-test");
+            else MessageBox.Show("Öz-test başlatılamadı — yönetici gerekir ya da disk ATA öz-test geçirmiyor (USB köprüsü olabilir).", "Öz-test");
+        }
+
+        // SMART öz-test durum baytını metne çevir
+        static string SelfTestText(int b)
+        {
+            if (b < 0) return "";
+            int st = (b >> 4) & 0xF;
+            if (st == 15) return "öz-test DEVAM EDİYOR (kalan ~%" + ((b & 0xF) * 10) + ")";
+            return st switch
+            {
+                0 => "son öz-test: ✓ sorunsuz (ya da hiç yapılmadı)",
+                1 => "son öz-test: kullanıcı iptal etti",
+                2 => "son öz-test: reset ile kesildi",
+                3 => "son öz-test: ölümcül hata",
+                4 => "son öz-test: tamamlanamadı",
+                5 => "son öz-test: ⚠ elektriksel hata",
+                6 => "son öz-test: ⚠ servo/seek hatası",
+                7 => "son öz-test: ⚠ OKUMA HATASI (bad sektör bulundu)",
+                8 => "son öz-test: ⚠ fiziksel hasar",
+                _ => "son öz-test: durum " + st
+            };
+        }
+
         private void Reset_Click(object sender, RoutedEventArgs e)
         {
             MessageBox.Show(
@@ -66,7 +97,9 @@ namespace VKM.App
                 string t = id.Value.rotation == 1 ? "SSD" : id.Value.rotation > 1 ? "HDD " + id.Value.rotation + " RPM" : "disk";
                 devLine = "Tür: " + t + "   ·   FW " + id.Value.fw + "   ·   Seri " + id.Value.serial + "\n";
             }
-            SummaryText.Text = devLine +
+            int stB = AtaSmart.SelfTestStatusByte(d.DeviceId);
+            string stLine = stB >= 0 ? SelfTestText(stB) + "\n" : "";
+            SummaryText.Text = devLine + stLine +
                 "Durum: " + (sd.PredictFailure ? "⚠ ARIZA TAHMİNİ" : "✓ Normal") +
                 "      Çalışma: " + poh + "      Sıcaklık: " + temp + "\n" +
                 "Yeniden atanan (5): " + (sd.Reallocated?.ToString() ?? "-") +
