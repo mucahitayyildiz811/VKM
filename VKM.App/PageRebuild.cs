@@ -1161,7 +1161,7 @@ namespace VKM.App
         // ── MEVCUT .bak'ı ONAR: zaten kurtarılmış (müşteriye verilmiş) bir .bak'ı BAŞTAN TARAMADAN düzeltir.
         //    Geri yükle → Fiş Bütünleme + Fiş tipi + başlık tutarı + hızlı-fiş bütünleme → yeniden .bak.
         //    Kaynak .bak'a dokunmaz; yeni outBak üretir. (105 GB şifreli MDF'i tekrar taramaya gerek yok.)
-        public const string BuildTag = "2026-11-27-N";   // her değişiklikte güncellenir → logda hangi kodu çalıştırdığın belli olur
+        public const string BuildTag = "2026-11-27-O";   // her değişiklikte güncellenir → logda hangi kodu çalıştırdığın belli olur
         public static bool FixBak(string inBak, string outBak, string? refPath, Action<string> log, out string err)
         {
             err = "";
@@ -2172,6 +2172,24 @@ namespace VKM.App
             catch (Exception ex) { try { ExecSql(cs, "ENABLE TRIGGER ALL ON dbo.ORT_FISSATIR;", 60); } catch { } log("Köprü onarımı hatası: " + First(ex.Message)); }
             try { broken = Convert.ToInt32(Query(cs, $"SELECT COUNT(*) FROM dbo.ORT_FISSATIR s WHERE LTRIM(ISNULL(s.{NC},N''))<>N'' AND (s.IDHesapkodu IS NULL OR s.IDHesapkodu=0 OR NOT EXISTS(SELECT 1 FROM dbo.ORT_PLAN q WHERE q.ID=s.IDHesapkodu));", 300)[0][0]); } catch { }
             log($"Fiş satırı → plan köprüsü: {linked} satırın hesap bağlantısı (IDHesapkodu) onarıldı" + (broken > 0 ? $" · {broken} satır hâlâ bağlanamadı (plan kodu eksik)" : " · tüm satırlar plana bağlı") + ".");
+            // TANI: fiş DÜZELTME ekranı neden boş? Orka'nın sorgusundaki hangi join satırları düşürüyor — örnek fişlerle ölç.
+            try
+            {
+                long Cnt(string sql) { try { return Convert.ToInt64(Query(cs, sql, 120)[0][0]); } catch (Exception e) { return -99; } }
+                var ids = new List<long>();
+                try { if (Convert.ToInt32(Query(cs, "SELECT COUNT(*) FROM dbo.ORT_FISBASLIK WHERE ID=7149;", 60)[0][0]) > 0) ids.Add(7149); } catch { }
+                foreach (var r in Query(cs, "SELECT TOP 2 b.ID FROM dbo.ORT_FISBASLIK b WHERE EXISTS(SELECT 1 FROM dbo.ORT_FISSATIR s WHERE s.IDFisbaslik=b.ID) ORDER BY b.ID DESC;", 60))
+                { long id = Convert.ToInt64(r[0]); if (!ids.Contains(id)) ids.Add(id); }
+                foreach (long id in ids.Take(3))
+                {
+                    long c0 = Cnt($"SELECT COUNT_BIG(*) FROM dbo.ORT_FISSATIR WHERE IDFisbaslik={id};");
+                    long c1 = Cnt($"SELECT COUNT_BIG(*) FROM dbo.ORT_FISSATIR s JOIN dbo.ORT_PLAN p ON p.ID=s.IDHesapkodu WHERE s.IDFisbaslik={id};");
+                    long c2 = Cnt($"SELECT COUNT_BIG(*) FROM dbo.ORT_FISSATIR s JOIN dbo.ORT_PLAN p ON LTRIM(RTRIM(p.plankod))=LTRIM(RTRIM(s.{NC})) WHERE s.IDFisbaslik={id};");
+                    long c3 = Cnt($"SELECT COUNT_BIG(*) FROM dbo.ORT_FISSATIR s JOIN dbo.ORT_FISBASLIK b ON b.ID=s.IDFisbaslik WHERE s.IDFisbaslik={id};");
+                    log($"TANI fiş ID {id}: düz satır={c0} · plan(IDHesapkodu-join)={c1} · plan(hesapkodu-join)={c2} · başlık-join={c3}");
+                }
+            }
+            catch (Exception ex) { log("Fiş düzeltme tanısı atlandı: " + First(ex.Message)); }
         }
 
         // Kurtarmada katalog sayfası şifreli kalınca bazı KOLONLAR hiç oluşturulamaz (ör. ORT_FISSATIR.hesapkodu).
@@ -2813,15 +2831,15 @@ namespace VKM.App
                        .Select(r => (name: Convert.ToString(r[0]) ?? "", type: (Convert.ToString(r[1]) ?? "").Trim(), def: Convert.ToString(r[2]) ?? ""))
                        .Where(m => m.name.Length > 0 && !have.Contains(m.name))
                        .OrderBy(m => m.type is "FN" or "IF" or "TF" ? 0 : m.type == "V" ? 1 : m.type == "P" ? 2 : 3).ToList();
-            int ok = 0;
+            int ok = 0; var lastErr = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             for (int pass = 0; pass < 5 && mods.Count > 0; pass++)
             {
-                var next = mods.Where(m => { try { ExecSql(cs, m.def, 300); ok++; return false; } catch { return true; } }).ToList();
+                var next = mods.Where(m => { try { ExecSql(cs, m.def, 300); ok++; return false; } catch (Exception ex) { lastErr[m.name] = First(ex.Message); return true; } }).ToList();
                 if (next.Count == mods.Count) { mods = next; break; }
                 mods = next;
             }
             if (ok > 0 || mods.Count > 0)
-                log($"Firmaya özel program nesneleri (view/fonksiyon) yardımcı veriden: {ok} eklendi" + (mods.Count > 0 ? $" · {mods.Count} kurulamadı" : "") + ".");
+                log($"Firmaya özel program nesneleri (view/fonksiyon) yardımcı veriden: {ok} eklendi" + (mods.Count > 0 ? $" · {mods.Count} kurulamadı [" + string.Join("; ", mods.Take(4).Select(m => $"{m.name}({m.type}): {(lastErr.TryGetValue(m.name, out var e) ? e : "?")}")) + "]" : "") + ".");
         }
 
         // ── Fiş satırlarında kullanılıp hesap planında OLMAYAN hesaplar (planın o sayfası şifreli kalmış, önceki yılda da yok):
