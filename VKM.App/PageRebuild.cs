@@ -2679,14 +2679,19 @@ namespace VKM.App
                 }
             }
             catch { }
-            // satırdaki hesap kodu bozuk (torn/şifre izi: "10@ 1 1 00") ama hesap ID'si plandaki bir hesabı gösteriyor → plandaki kod
+            // satırdaki hesap kodu BOŞ (kolon şema-tamamlamayla sonradan eklendi, NULL geldi) ya da bozuk (torn: "10@ 1 1 00")
+            // → hesap ID'si (IDHesapkodu) plandaki hesabı gösteriyorsa plandaki kodla DOLDUR.
+            // ÖNEMLİ: Orka fiş DÜZELTME ekranı hesapkodu'nu doğrudan okur; boşsa satırları HİÇ göstermez (fiş no dolu, içi boş görünür).
             int fixedCodes = 0;
             try
             {
                 fixedCodes = Convert.ToInt32(Query(cs, @"DISABLE TRIGGER ALL ON dbo.ORT_FISSATIR;
                     UPDATE s SET s.hesapkodu=p.plankod FROM dbo.ORT_FISSATIR s JOIN dbo.ORT_PLAN p ON p.ID=s.IDHesapkodu
-                    WHERE NOT EXISTS (SELECT 1 FROM dbo.ORT_PLAN q WHERE q.plankod=s.hesapkodu) AND LEN(ISNULL(s.hesapkodu,N''))=LEN(p.plankod);
+                    WHERE p.plankod IS NOT NULL AND (s.hesapkodu IS NULL OR LTRIM(s.hesapkodu)=N''
+                          OR (NOT EXISTS (SELECT 1 FROM dbo.ORT_PLAN q WHERE q.plankod=s.hesapkodu) AND LEN(ISNULL(s.hesapkodu,N''))=LEN(p.plankod)));
                     SELECT @@ROWCOUNT; ENABLE TRIGGER ALL ON dbo.ORT_FISSATIR;", 300)[0][0]);
+                // hesapkebirkodu (ilk 3 hane) ve karşı hesap/kebir boş kaldıysa koddan türet
+                try { ExecSql(cs, @"IF COL_LENGTH('dbo.ORT_FISSATIR','hesapkebirkodu') IS NOT NULL EXEC('DISABLE TRIGGER ALL ON dbo.ORT_FISSATIR; UPDATE dbo.ORT_FISSATIR SET hesapkebirkodu=TRY_CONVERT(int,LEFT(LTRIM(hesapkodu),3)) WHERE (hesapkebirkodu IS NULL OR hesapkebirkodu=0) AND hesapkodu IS NOT NULL; ENABLE TRIGGER ALL ON dbo.ORT_FISSATIR;');", 120); } catch { }
             }
             catch { try { ExecSql(cs, "ENABLE TRIGGER ALL ON dbo.ORT_FISSATIR;", 60); } catch { } }
             // hâlâ bozuk karakterli kodlar ("1@0 1 1 00"): bozuk karakter joker sayılır; planda ya da diğer satırlarda TEK bir sağlam karşılık varsa o
