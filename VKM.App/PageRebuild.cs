@@ -1161,7 +1161,7 @@ namespace VKM.App
         // ── MEVCUT .bak'ı ONAR: zaten kurtarılmış (müşteriye verilmiş) bir .bak'ı BAŞTAN TARAMADAN düzeltir.
         //    Geri yükle → Fiş Bütünleme + Fiş tipi + başlık tutarı + hızlı-fiş bütünleme → yeniden .bak.
         //    Kaynak .bak'a dokunmaz; yeni outBak üretir. (105 GB şifreli MDF'i tekrar taramaya gerek yok.)
-        public const string BuildTag = "2026-11-27-K";   // her değişiklikte güncellenir → logda hangi kodu çalıştırdığın belli olur
+        public const string BuildTag = "2026-11-27-L";   // her değişiklikte güncellenir → logda hangi kodu çalıştırdığın belli olur
         public static bool FixBak(string inBak, string outBak, string? refPath, Action<string> log, out string err)
         {
             err = "";
@@ -1227,6 +1227,9 @@ namespace VKM.App
                 // referans yoksa/açılamadıysa: fişlerde kullanılıp planda olmayan hesapları referanssız aç (361 vb. "kod oluşturulamadı" hatasını önler)
                 if (!planDone)
                     try { RepairPlanRefs(db, Path.GetDirectoryName(outBak) ?? ".", log); } catch (Exception ex) { log("Hesap planı bağlantı onarımı atlandı: " + First(ex.Message)); }
+
+                // fiş satırı → plan köprüsü (IDHesapkodu) + gerçek kolon adı TANISI
+                try { RepairLinePlanLinks(db, log); } catch (Exception ex) { log("Fiş-plan köprü onarımı atlandı: " + First(ex.Message)); }
 
                 try { RebuildHeadersFromQuickEntry(db, log); } catch (Exception ex) { log("Hızlı fişten başlık üretimi atlandı: " + First(ex.Message)); }
                 try { RebuildHeadersFromOrphanLines(db, log); } catch (Exception ex) { log("Yetim satırlardan başlık bütünleme atlandı: " + First(ex.Message)); }
@@ -2096,6 +2099,43 @@ namespace VKM.App
                 }
             }
             if (total > 0) log($"Bilinen bozuk kolon ADI düzeltildi (referanssız, gömülü şema): {total} kolon" + (ex.Count > 0 ? " (ör. " + string.Join(", ", ex) + ")" : "") + " — Orka fiş düzeltme ekranı artık dolu gelir.");
+        }
+
+        // Fiş satırı → hesap planı KÖPRÜSÜ. Orka'nın fiş DÜZELTME ekranı satırı IDHesapkodu ile plana bağlar;
+        // IDHesapkodu boş/geçersizse satır ekranda GÖRÜNMEZ (fiş no dolu, içi boş). Ayrıca gerçek kolon adlarını loga yazar (TANI).
+        static void RepairLinePlanLinks(string R, Action<string> log)
+        {
+            string cs = Conn(R);
+            var h = Query(cs, "SELECT OBJECT_ID('dbo.ORT_FISSATIR'), OBJECT_ID('dbo.ORT_PLAN');", 60)[0];
+            if (h[0] == DBNull.Value || h[1] == DBNull.Value) return;
+            // TANI: gerçek SQL tarafında hesap kolon adları (hesapkodu mu, hesapūodu mu — kesin görelim)
+            string nameCol = "hesapkodu";
+            try
+            {
+                var hcols = Query(cs, "SELECT c.name FROM sys.columns c WHERE c.object_id=OBJECT_ID('dbo.ORT_FISSATIR') AND c.name LIKE N'%hesap%' ORDER BY c.column_id;", 60)
+                            .Select(r => Convert.ToString(r[0]) ?? "").ToList();
+                log("TANI · ORT_FISSATIR hesap kolonları: " + string.Join(", ", hcols));
+                // 'hesapkodu' yoksa ama ona çok benzer bozuk ad varsa onu kullan (ör. hesapūodu) — en azından köprüyü kurabilelim
+                if (!hcols.Any(c => c.Equals("hesapkodu", StringComparison.OrdinalIgnoreCase)))
+                {
+                    var alt = hcols.FirstOrDefault(c => c.Length == 9 && c.StartsWith("hesap", StringComparison.OrdinalIgnoreCase) && c.EndsWith("odu", StringComparison.OrdinalIgnoreCase));
+                    if (alt != null) { nameCol = alt; log($"⚠ 'hesapkodu' kolonu yok, bozuk ad '{alt}' kullanılıyor — kolon adı onarımı neden çalışmadı, araştırılmalı."); }
+                }
+            }
+            catch { }
+            string NC = "[" + nameCol.Replace("]", "]]") + "]";
+            int linked = 0, broken = 0;
+            try
+            {
+                linked = Convert.ToInt32(Query(cs, $@"DISABLE TRIGGER ALL ON dbo.ORT_FISSATIR;
+                    UPDATE s SET s.IDHesapkodu=p.ID
+                    FROM dbo.ORT_FISSATIR s JOIN dbo.ORT_PLAN p ON LTRIM(RTRIM(p.plankod))=LTRIM(RTRIM(s.{NC}))
+                    WHERE LTRIM(ISNULL(s.{NC},N''))<>N'' AND (s.IDHesapkodu IS NULL OR s.IDHesapkodu=0 OR NOT EXISTS(SELECT 1 FROM dbo.ORT_PLAN q WHERE q.ID=s.IDHesapkodu));
+                    SELECT @@ROWCOUNT; ENABLE TRIGGER ALL ON dbo.ORT_FISSATIR;", 600)[0][0]);
+            }
+            catch (Exception ex) { try { ExecSql(cs, "ENABLE TRIGGER ALL ON dbo.ORT_FISSATIR;", 60); } catch { } log("Köprü onarımı hatası: " + First(ex.Message)); }
+            try { broken = Convert.ToInt32(Query(cs, $"SELECT COUNT(*) FROM dbo.ORT_FISSATIR s WHERE LTRIM(ISNULL(s.{NC},N''))<>N'' AND (s.IDHesapkodu IS NULL OR s.IDHesapkodu=0 OR NOT EXISTS(SELECT 1 FROM dbo.ORT_PLAN q WHERE q.ID=s.IDHesapkodu));", 300)[0][0]); } catch { }
+            log($"Fiş satırı → plan köprüsü: {linked} satırın hesap bağlantısı (IDHesapkodu) onarıldı" + (broken > 0 ? $" · {broken} satır hâlâ bağlanamadı (plan kodu eksik)" : " · tüm satırlar plana bağlı") + ".");
         }
 
         // Kurtarmada katalog sayfası şifreli kalınca bazı KOLONLAR hiç oluşturulamaz (ör. ORT_FISSATIR.hesapkodu).
