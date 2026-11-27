@@ -1203,6 +1203,7 @@ namespace VKM.App
                 try { RebuildLinesFromQuickEntry(db, log); } catch (Exception ex) { log("Hızlı fişten satır üretimi atlandı: " + First(ex.Message)); }
                 try { FixHeaderTotals(db, log); } catch { }
                 try { QualitySummary(db, Path.GetDirectoryName(outBak) ?? ".", Path.GetFileNameWithoutExtension(outBak), log); } catch (Exception ex) { log("Kalite özeti atlandı: " + First(ex.Message)); }
+                try { ReportProblemVouchers(db, Path.GetDirectoryName(outBak) ?? ".", Path.GetFileNameWithoutExtension(outBak), log); } catch (Exception ex) { log("Eksik fiş raporu atlandı: " + First(ex.Message)); }
 
                 log("2) Düzeltilmiş yedek yazılıyor…");
                 ExecSql(cs0, $"BACKUP DATABASE [{db}] TO DISK = N'{Esc(outBak)}' WITH INIT, FORMAT;", 7200);
@@ -1606,6 +1607,7 @@ namespace VKM.App
                 try { FillNullDefaults(finalDb, log); } catch (Exception ex) { log("Boş alanlara varsayılan değer atlandı: " + First(ex.Message)); }
                 try { FixHeaderTotals(finalDb, log); } catch { }
                 try { QualitySummary(finalDb, Path.GetDirectoryName(outBak) ?? ".", Path.GetFileNameWithoutExtension(outBak), log); } catch (Exception ex) { log("Kalite özeti çıkarılamadı: " + First(ex.Message)); }
+                try { ReportProblemVouchers(finalDb, Path.GetDirectoryName(outBak) ?? ".", Path.GetFileNameWithoutExtension(outBak), log); } catch (Exception ex) { log("Eksik fiş raporu atlandı: " + First(ex.Message)); }
 
                 // uyumluluk seviyesi: referanssız DB'ler aynı programın diğer DB'lerindeki seviyeye (Orka: 100 = SQL 2008 modu)
                 if (rf == null)
@@ -2407,6 +2409,49 @@ namespace VKM.App
                 File.AppendAllText(f, string.Join(";", name, zayif ? "KONTROL" : "IYI", fb, bos, dengesiz, fs, yetim, aylar, eksikAy, plan, adsiz, pers, cari, DateTime.Now.ToString("yyyy-MM-dd HH:mm")) + "\n", Encoding.UTF8);
             }
             catch { }
+        }
+
+        static string FmtN(object o) => o == DBNull.Value ? "" : Convert.ToDecimal(o).ToString("N2", System.Globalization.CultureInfo.GetCultureInfo("tr-TR"));
+
+        // ── EKSİK FİŞ RAPORU: içeriden tamamlanamayan fişleri tek tek listeler (müşavir kaynak belgeden/e-defterden kapatır).
+        //    DENGESIZ = bazı satırları şifreli sayfada kaybolmuş (Borç≠Alacak). SATIRSIZ = başlık var, satırları hiç yok.
+        //    Eksik satırın HESABI kayıp olduğu için UYDURULMAZ (defteri bozar) — sadece net rapor: hangi fiş, ne kadar eksik.
+        static void ReportProblemVouchers(string R, string dir, string name, Action<string> log)
+        {
+            string cs = Conn(R);
+            var has = Query(cs, "SELECT OBJECT_ID('dbo.ORT_FISBASLIK'), OBJECT_ID('dbo.ORT_FISSATIR'), COL_LENGTH('dbo.ORT_FISSATIR','tlborctutar');", 60)[0];
+            if (has.Any(x => x == DBNull.Value)) return;
+            string fno = Query(cs, "SELECT COL_LENGTH('dbo.ORT_FISBASLIK','fisno');", 60)[0][0] != DBNull.Value ? "fisno" : "ID";
+            List<object[]> deng, bos;
+            try
+            {
+                deng = Query(cs, $@"SELECT b.{fno} AS fno, CONVERT(varchar(10), b.fistarihi, 104) AS tarih, LEFT(ISNULL(b.fisaciklama,N''),60) AS acik,
+                        s.borc, s.alac, s.borc - s.alac AS fark
+                     FROM dbo.ORT_FISBASLIK b
+                     JOIN (SELECT IDFisbaslik, SUM(ISNULL(tlborctutar,0)) borc, SUM(ISNULL(tlalactutar,0)) alac
+                           FROM dbo.ORT_FISSATIR GROUP BY IDFisbaslik
+                           HAVING ABS(SUM(ISNULL(tlborctutar,0))-SUM(ISNULL(tlalactutar,0)))>0.01) s ON s.IDFisbaslik=b.ID
+                     ORDER BY b.fistarihi, b.{fno};", 600);
+                bos = Query(cs, $@"SELECT b.{fno} AS fno, CONVERT(varchar(10), b.fistarihi, 104) AS tarih, LEFT(ISNULL(b.fisaciklama,N''),60) AS acik, ISNULL(b.fistutar,0) AS tutar
+                     FROM dbo.ORT_FISBASLIK b
+                     WHERE NOT EXISTS (SELECT 1 FROM dbo.ORT_FISSATIR s WHERE s.IDFisbaslik=b.ID)
+                     ORDER BY b.fistarihi, b.{fno};", 600);
+            }
+            catch (Exception ex) { log("Eksik fiş raporu çıkarılamadı: " + First(ex.Message)); return; }
+            if (deng.Count == 0 && bos.Count == 0) return;
+            try
+            {
+                string f = Path.Combine(dir, "VKM_eksik_fisler.csv");
+                bool neu = !File.Exists(f);
+                var sb = new StringBuilder();
+                if (neu) sb.Append("firma;durum;fisno;tarih;aciklama;borc;alacak;eksik_tutar\n");
+                string C(object o) => (Convert.ToString(o) ?? "").Replace(";", " ").Replace("\n", " ").Replace("\r", " ");
+                foreach (var r in deng) sb.Append(string.Join(";", name, "DENGESIZ", C(r[0]), C(r[1]), C(r[2]), FmtN(r[3]), FmtN(r[4]), FmtN(r[5])) + "\n");
+                foreach (var r in bos) sb.Append(string.Join(";", name, "SATIRSIZ", C(r[0]), C(r[1]), C(r[2]), "", "", FmtN(r[3])) + "\n");
+                File.AppendAllText(f, sb.ToString(), new UTF8Encoding(neu));
+            }
+            catch { }
+            log($"⚠ Eksik fiş raporu: {deng.Count} dengesiz + {bos.Count} satırsız fiş → VKM_eksik_fisler.csv (eksik satırların hesabı şifreli sayfada kaybolmuş; müşavir kaynak belgeden/e-defterden tamamlar — uydurulmadı).");
         }
 
         // ── Hızlı Fiş (Excel Fiş Girişi / yazarkasa Z raporu) kaydından üretilmiş fişlerin şifreli sayfada kalan SATIRLARI:
