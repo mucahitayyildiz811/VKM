@@ -2038,7 +2038,8 @@ namespace VKM.App
                     string rn = rc[i].name, hn = hc[i].name;
                     if (rn.Equals(hn, StringComparison.OrdinalIgnoreCase) || rc[i].type != hc[i].type) continue;
                     if (hNames.Contains(rn) || rNames.Contains(hn)) continue;      // gerçek/farklı kolon → dokunma
-                    if (!(sameCount || Corrupt(rn))) continue;                      // güvenli hizalama ya da adı bozuk görünmeli
+                    bool similar = rn.Length == hn.Length && rn.Where((ch, k) => ch != hn[k]).Count() is >= 1 and <= 2;  // natrah_03≈matrah_03
+                    if (!(sameCount || Corrupt(rn) || similar)) continue;           // güvenli hizalama / adı bozuk / referansa çok benzer
                     string o = ("dbo." + kv.Key + "." + rn).Replace("'", "''"), nn = hn.Replace("'", "''");
                     try { ExecSql(cs, $"EXEC sp_rename N'{o}', N'{nn}', 'COLUMN';", 60); renamed++; tset.Add(kv.Key); rNames.Remove(rn); rNames.Add(hn); if (ex0.Count < 4) ex0.Add($"{rn}→{hn}"); }
                     catch { }
