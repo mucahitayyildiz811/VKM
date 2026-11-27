@@ -2,6 +2,8 @@ name: build
 on:
   push:
   workflow_dispatch:
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: windows-latest
@@ -12,13 +14,20 @@ jobs:
           dotnet-version: '8.0.x'
       - name: Derle (Release)
         run: dotnet build VeriKurtarmaMerkezi.sln -c Release --nologo
-      - name: Yayinla (self-contained x64, hazir exe)
+      - name: Yayinla (self-contained x64)
         run: dotnet publish VKM.App/VKM.App.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o publish --nologo
-      - name: Paketle (zip)
+      - name: Paketle (tam kurulum zip)
         run: Compress-Archive -Path publish/* -DestinationPath VKM-hazir.zip -Force
-      - name: Yukle (indirilebilir hazir exe)
+      - name: Stabil indirme linki (latest release - her push'ta guncellenir)
+        shell: bash
+        run: |
+          gh release view latest >/dev/null 2>&1 || gh release create latest --title "VKM guncel (son derleme)" --notes "Her push'ta otomatik guncellenir. VeriKurtarmaMerkezi.dll = hizli guncelleme, VKM-hazir.zip = ilk kurulum."
+          gh release upload latest publish/VeriKurtarmaMerkezi.dll VKM-hazir.zip --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Artifact (yedek)
         uses: actions/upload-artifact@v4
         with:
           name: VKM-hazir-exe
           path: VKM-hazir.zip
-          retention-days: 30
+          retention-days: 15
