@@ -449,6 +449,37 @@ namespace VKM.App
             finally { SetBusy(false); InstallBtn.IsEnabled = true; }
         }
 
+        // Zaten kurtarılmış bir .bak'ı baştan taramadan düzelt (Fiş Bütünleme + Fiş tipi + başlık tutarı)
+        private async void FixBak_Click(object sender, RoutedEventArgs e)
+        {
+            var d = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Onarılacak .bak (zaten kurtarılmış/teslim edilmiş)",
+                Filter = "SQL yedek (*.bak)|*.bak", Multiselect = true
+            };
+            if (_outDir != null && Directory.Exists(_outDir)) d.InitialDirectory = _outDir;
+            if (d.ShowDialog() != true || d.FileNames.Length == 0) return;
+            var baks = d.FileNames.ToList();
+            SetBusy(true); FixBakBtn.IsEnabled = false;
+            LogText.Text = "";
+            Log("══════ MEVCUT .bak ONAR ══════");
+            try
+            {
+                int ok = 0;
+                foreach (var inBak in baks)
+                {
+                    string outBak = Path.Combine(Path.GetDirectoryName(inBak) ?? ".", Path.GetFileNameWithoutExtension(inBak) + "_onarildi.bak");
+                    Log("── " + Path.GetFileName(inBak) + " ──");
+                    bool r = await Task.Run(() => PageRebuild.FixBak(inBak, outBak, Log, out _));
+                    if (r) ok++;
+                }
+                MessageBox.Show($"{ok}/{baks.Count} .bak onarıldı (yanına _onarildi.bak olarak kaydedildi).\nOrka'da geri yükleyip (🖥 Müşteride Geri Yükle) kontrol edebilirsin.",
+                                "Mevcut .bak Onar", MessageBoxButton.OK, ok == baks.Count ? MessageBoxImage.Information : MessageBoxImage.Warning);
+            }
+            catch (Exception ex) { Log("✗ " + ex.Message); }
+            finally { SetBusy(false); FixBakBtn.IsEnabled = true; }
+        }
+
         // küçük giriş penceresi: SQL kullanıcı adı + şifre
         private (string user, string pass)? AskSqlLogin()
         {

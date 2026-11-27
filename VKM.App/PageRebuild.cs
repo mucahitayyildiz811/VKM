@@ -1158,6 +1158,65 @@ namespace VKM.App
         }
 
         // Başlık (sayfa 0 ve 9) sağlam mı? Değilse motor denemesi boşuna.
+        // ── MEVCUT .bak'ı ONAR: zaten kurtarılmış (müşteriye verilmiş) bir .bak'ı BAŞTAN TARAMADAN düzeltir.
+        //    Geri yükle → Fiş Bütünleme + Fiş tipi + başlık tutarı + hızlı-fiş bütünleme → yeniden .bak.
+        //    Kaynak .bak'a dokunmaz; yeni outBak üretir. (105 GB şifreli MDF'i tekrar taramaya gerek yok.)
+        public static bool FixBak(string inBak, string outBak, Action<string> log, out string err)
+        {
+            err = "";
+            if (!File.Exists(inBak)) { err = ".bak bulunamadı: " + inBak; return false; }
+            if (!MssqlBak.BakCompatible(inBak))
+            {
+                log("Yedek bu SQL sürümünden yeni — daha yeni LocalDB deneniyor…");
+                if (!MssqlBak.TryNewerLocalDb(log)) { err = "Bu .bak'ı açacak LocalDB sürümü yok (daha yeni SQL/LocalDB gerekir)."; return false; }
+            }
+            string db = "VKM_FixBak_" + Environment.ProcessId + "_" + DateTime.Now.ToString("HHmmss");
+            string work = Path.Combine(Path.GetDirectoryName(outBak) ?? Path.GetTempPath(), "vkm_fixbak_" + DateTime.Now.ToString("yyyyMMdd_HHmmss"));
+            string cs0 = Conn("master");
+            bool created = false;
+            try
+            {
+                Directory.CreateDirectory(work);
+                GrantAll(work);
+                log("1) Yedek geri yükleniyor (çalışma kopyası, orijinal .bak'a dokunulmaz)…");
+                var files = Query(cs0, $"RESTORE FILELISTONLY FROM DISK = N'{Esc(inBak)}';", 600);
+                var moves = new List<string>(); int i = 0;
+                foreach (var f in files)
+                {
+                    string logical = Convert.ToString(f[0]) ?? "", type = (Convert.ToString(f[2]) ?? "D").Trim();
+                    string target = type switch
+                    {
+                        "L" => Path.Combine(work, $"{db}_log{i}.ldf"),
+                        "D" => Path.Combine(work, $"{db}_dat{i}" + (i == 0 ? ".mdf" : ".ndf")),
+                        _ => Path.Combine(work, $"{db}_x{i}")
+                    };
+                    moves.Add($"MOVE N'{Esc(logical)}' TO N'{Esc(target)}'"); i++;
+                }
+                try { ExecSql(cs0, $"IF DB_ID('{db}') IS NOT NULL BEGIN ALTER DATABASE [{db}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{db}]; END", 120); } catch { }
+                ExecSql(cs0, $"RESTORE DATABASE [{db}] FROM DISK = N'{Esc(inBak)}' WITH {string.Join(", ", moves)}, REPLACE, RECOVERY;", 14400);
+                created = true;
+                log("✓ Geri yüklendi. Onarım adımları çalışıyor…");
+
+                try { RebuildHeadersFromQuickEntry(db, log); } catch (Exception ex) { log("Hızlı fişten başlık üretimi atlandı: " + First(ex.Message)); }
+                try { RebuildHeadersFromOrphanLines(db, log); } catch (Exception ex) { log("Yetim satırlardan başlık bütünleme atlandı: " + First(ex.Message)); }
+                try { AssignMissingFisTipi(db, log); } catch (Exception ex) { log("Fiş tipi belirleme atlandı: " + First(ex.Message)); }
+                try { RebuildLinesFromQuickEntry(db, log); } catch (Exception ex) { log("Hızlı fişten satır üretimi atlandı: " + First(ex.Message)); }
+                try { FixHeaderTotals(db, log); } catch { }
+                try { QualitySummary(db, Path.GetDirectoryName(outBak) ?? ".", Path.GetFileNameWithoutExtension(outBak), log); } catch (Exception ex) { log("Kalite özeti atlandı: " + First(ex.Message)); }
+
+                log("2) Düzeltilmiş yedek yazılıyor…");
+                ExecSql(cs0, $"BACKUP DATABASE [{db}] TO DISK = N'{Esc(outBak)}' WITH INIT, FORMAT;", 7200);
+                log("✓✓ HAZIR — onarılmış .bak üretildi: " + outBak);
+                return true;
+            }
+            catch (Exception ex) { err = First(ex.Message); log("✗ Onarım hatası: " + err); return false; }
+            finally
+            {
+                if (created) { try { ExecSql(cs0, $"IF DB_ID('{db}') IS NOT NULL BEGIN ALTER DATABASE [{db}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{db}]; END", 120); } catch { } }
+                try { if (Directory.Exists(work)) Directory.Delete(work, true); } catch { }
+            }
+        }
+
         public static bool HeaderLooksOk(string src)
         {
             try
