@@ -1197,6 +1197,9 @@ namespace VKM.App
                 created = true;
                 log("✓ Geri yüklendi. Onarım adımları çalışıyor…");
 
+                // ÖNCE: Orka'nın adıyla aradığı kritik kolonların bozuk adları (hesapūodu→hesapkodu) — referans gelmese de düzelsin.
+                try { FixKnownCorruptColumns(db, log); } catch (Exception ex) { log("Bilinen bozuk kolon onarımı atlandı: " + First(ex.Message)); }
+
                 // 2024/sağlam referans verildiyse: hesap planı + cari + şablon/tanım tamamla (collation artık uyumlu)
                 bool planDone = false;
                 if (!string.IsNullOrEmpty(refPath) && File.Exists(refPath))
@@ -2050,6 +2053,47 @@ namespace VKM.App
                 }
             }
             if (renamed > 0) log($"Bozuk kolon ADI düzeltildi: {renamed} kolon ({tset.Count} tabloda) referanstaki doğru adıyla değiştirildi" + (ex0.Count > 0 ? " (ör. " + string.Join(", ", ex0) + ")" : "") + " — veri korundu, Orka 'Field not found' hataları biter.");
+        }
+
+        // Orka'nın ekran sorgularının adıyla aradığı KRİTİK kolonlar — bunların adı bozuksa (ör. hesapūodu) ekran boş gelir.
+        // Referans OLMADAN da düzeltilmeli: doğru adları gömülü; bozuk eşleşen tek kolonu sp_rename ile düzeltir. Tüm Orka firmalarında şema aynı.
+        static readonly Dictionary<string, string[]> KnownCriticalCols = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["ORT_FISSATIR"] = new[] { "hesapkodu", "karsihesapkodu", "hesapkebirkodu", "fisaciklamasi", "fisbelgetarihi", "tlborctutar", "tlalactutar", "borcalacak", "kayitsirano" },
+            ["ORT_FISBASLIK"] = new[] { "fisno", "fistarihi", "fisaciklama", "fistipi", "fistutar", "fisyevmiyeno" },
+            ["ORT_PLAN"] = new[] { "plankod", "planadi", "kebirkod" },
+            ["ORT_FISEXCELSATIR"] = new[] { "matrah_01","matrah_02","matrah_03","matrah_04","matrah_05","matrah_06","matrah_07","kdvoran_01","kdvoran_02","kdvoran_03","kdvoran_04","kdvoran_05","kdvoran_06","kdvoran_07","kdvttr_01","kdvttr_02","kdvttr_03","kdvttr_04","kdvttr_05","kdvttr_06","kdvttr_07" },
+        };
+        static void FixKnownCorruptColumns(string R, Action<string> log)
+        {
+            string cs = Conn(R);
+            bool CorruptCh(char c) => !(c < 128 && (char.IsLetterOrDigit(c) || c == '_'));
+            int total = 0; var ex = new List<string>();
+            foreach (var kv in KnownCriticalCols)
+            {
+                string tbl = kv.Key;
+                var actual = Query(cs, $"SELECT c.name FROM sys.columns c WHERE c.object_id=OBJECT_ID('dbo.{tbl}');", 60)
+                             .Select(r => Convert.ToString(r[0]) ?? "").Where(s => s.Length > 0).ToList();
+                if (actual.Count == 0) continue;
+                var actualSet = new HashSet<string>(actual, StringComparer.OrdinalIgnoreCase);
+                foreach (string want in kv.Value)
+                {
+                    if (actualSet.Contains(want)) continue;                 // zaten doğru
+                    // bozuk eşleşen: aynı uzunluk, her pozisyonda ya aynı ya bozuk-karakter, en az 1 bozuk karakter
+                    var cand = actual.Where(a => a.Length == want.Length
+                                 && Enumerable.Range(0, want.Length).All(i => a[i] == want[i] || CorruptCh(a[i]))
+                                 && Enumerable.Range(0, want.Length).Any(i => a[i] != want[i])).Distinct().ToList();
+                    if (cand.Count != 1) continue;                          // tek net aday değilse dokunma
+                    string from = cand[0];
+                    try
+                    {
+                        ExecSql(cs, $"EXEC sp_rename N'dbo.{tbl}.{from.Replace("'", "''")}', N'{want.Replace("'", "''")}', 'COLUMN';", 60);
+                        actualSet.Remove(from); actualSet.Add(want); total++; if (ex.Count < 6) ex.Add($"{from}→{want}");
+                    }
+                    catch { }
+                }
+            }
+            if (total > 0) log($"Bilinen bozuk kolon ADI düzeltildi (referanssız, gömülü şema): {total} kolon" + (ex.Count > 0 ? " (ör. " + string.Join(", ", ex) + ")" : "") + " — Orka fiş düzeltme ekranı artık dolu gelir.");
         }
 
         // Kurtarmada katalog sayfası şifreli kalınca bazı KOLONLAR hiç oluşturulamaz (ör. ORT_FISSATIR.hesapkodu).
