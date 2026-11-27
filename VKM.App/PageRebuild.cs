@@ -2005,6 +2005,48 @@ namespace VKM.App
         //    ya da tablo kurtarmada boş kaldı ve adı tanım/kart/plan/şablon tablosu. Fiş/hareket tabloları ASLA doldurulmaz.
         static readonly Regex MasterRx = new(@"^(GRP_|ICE_CARI|ORT_PLAN$|ORT_FISEXCELSABLON$|ORT_KAYITSBL|ORT_MUHTABLO|ORT_MUHTSODE|ORT_OZELLIK|ORT_BELGE|ORT_(GRUP)?KEBIR|ORT_KDVTABLO$|ORT_\w*TANIM$|BIL_(BABSTANIM|KDVHESKOD|YANSITMA|MALIYET\w*|STOKKART)$|STK_(STOKKART|RENKLER|BOYUTLAR|STOKFIYATGRUP|INDIRIM\w*)$|PUB_(PERSONPROFIL|MESAITANIM|VARDIYA\w*|KNT\w*|PERSONEL\w*|ISEGIRISCIKIS|KIMLIKLER|ADRESLER|YAKINLARI|OGRENIMDURUMU|OZLUKDOSYASI|HESPLAN|CALISILANYERLER|\w*GELIRTURLERI|SENDIKA\w*|TESVIKTANIM|CALISMADUZENI\w*|CALISMAPLANLARI|CALISMAHAREKETTIPI|GRUP\w*|ZIMMETKART|MESAIHESAPLARI|PDKSGRUPLAR|EGTPLAN|ICRALAR|GELVERTABUCRET|SGKTABUCRET)$)", RegexOptions.IgnoreCase);
         static readonly Regex TranRx = new(@"(FISBASLIK|FISSATIR|EXCELSATIR|TRAN|HAREKET|BEYAN|EFATURA|EDEFTER|EYEVMIYE|DOSYA|LOG$|_LOG|MESAILER|IZINLER|BORDRO|PUANTAJ|SAYIM|ENVANTER|NOTLAR)", RegexOptions.IgnoreCase);
+        // Kurtarmada katalog bozulunca kolon ADININ baytları garbellenebilir (ör. 'hesapkodu' → 'hesapūodu', 'imgidx' → 'imgifx').
+        // Kolon ve VERİ yerinde ama adı yanlış → Orka "Field 'hesapkodu' not found" der, fişin içi boş görünür.
+        // Düzeltme: sağlam referansla (2024) AYNI POZİSYON + AYNI TİP'teki kolonun bozuk adını doğru adıyla değiştir (sp_rename) — veri korunur.
+        static void FixCorruptColumnNames(string R, string H, Action<string> log)
+        {
+            Dictionary<string, List<(int cid, string name, int type)>> Load(string db)
+            {
+                var res = new Dictionary<string, List<(int, string, int)>>(StringComparer.OrdinalIgnoreCase);
+                foreach (var r in Query(Conn(db), "SELECT t.name, c.column_id, c.name, c.system_type_id FROM sys.tables t JOIN sys.columns c ON c.object_id=t.object_id WHERE t.is_ms_shipped=0 AND SCHEMA_NAME(t.schema_id)='dbo' ORDER BY t.name, c.column_id;", 300))
+                {
+                    string tn = Convert.ToString(r[0]) ?? "";
+                    if (!res.TryGetValue(tn, out var l)) res[tn] = l = new();
+                    l.Add((Convert.ToInt32(r[1]), Convert.ToString(r[2]) ?? "", Convert.ToInt32(r[3])));
+                }
+                return res;
+            }
+            bool Corrupt(string s) => s.Length == 0 || s.Any(ch => !((char.IsLetterOrDigit(ch) && ch < 128) || ch == '_'));
+            string cs = Conn(R);
+            var rT = Load(R); var hT = Load(H);
+            int renamed = 0; var tset = new HashSet<string>(StringComparer.OrdinalIgnoreCase); var ex0 = new List<string>();
+            foreach (var kv in hT)
+            {
+                if (!rT.TryGetValue(kv.Key, out var rc)) continue;
+                var hc = kv.Value;
+                var hNames = new HashSet<string>(hc.Select(x => x.name), StringComparer.OrdinalIgnoreCase);
+                var rNames = new HashSet<string>(rc.Select(x => x.name), StringComparer.OrdinalIgnoreCase);
+                bool sameCount = rc.Count == hc.Count;
+                int m = Math.Min(hc.Count, rc.Count);
+                for (int i = 0; i < m; i++)
+                {
+                    string rn = rc[i].name, hn = hc[i].name;
+                    if (rn.Equals(hn, StringComparison.OrdinalIgnoreCase) || rc[i].type != hc[i].type) continue;
+                    if (hNames.Contains(rn) || rNames.Contains(hn)) continue;      // gerçek/farklı kolon → dokunma
+                    if (!(sameCount || Corrupt(rn))) continue;                      // güvenli hizalama ya da adı bozuk görünmeli
+                    string o = ("dbo." + kv.Key + "." + rn).Replace("'", "''"), nn = hn.Replace("'", "''");
+                    try { ExecSql(cs, $"EXEC sp_rename N'{o}', N'{nn}', 'COLUMN';", 60); renamed++; tset.Add(kv.Key); rNames.Remove(rn); rNames.Add(hn); if (ex0.Count < 4) ex0.Add($"{rn}→{hn}"); }
+                    catch { }
+                }
+            }
+            if (renamed > 0) log($"Bozuk kolon ADI düzeltildi: {renamed} kolon ({tset.Count} tabloda) referanstaki doğru adıyla değiştirildi" + (ex0.Count > 0 ? " (ör. " + string.Join(", ", ex0) + ")" : "") + " — veri korundu, Orka 'Field not found' hataları biter.");
+        }
+
         // Kurtarmada katalog sayfası şifreli kalınca bazı KOLONLAR hiç oluşturulamaz (ör. ORT_FISSATIR.hesapkodu).
         // Sağlam referansta (2024) olup kurtarılanda olmayan kolonları ekler → Orka'nın "Field 'x' not found" hatası biter.
         // Eklenen kolonlar NULL gelir; değerleri sonraki adımlar doldurur (hesapkodu → RepairPlanRefs plan bağlantısından).
@@ -2043,6 +2085,7 @@ namespace VKM.App
         static void FillFromHelper(string R, string H, Action<string> log)
         {
             string cs = Conn(R);
+            try { FixCorruptColumnNames(R, H, log); } catch (Exception ex) { log("Bozuk kolon adı düzeltme atlandı: " + First(ex.Message)); }
             try { AddMissingColumnsFromHelper(R, H, log); } catch (Exception ex) { log("Eksik kolon ekleme atlandı: " + First(ex.Message)); }
             string Q(string x) => "[" + x.Replace("]", "]]") + "]";
             string HQ = Q(H);
