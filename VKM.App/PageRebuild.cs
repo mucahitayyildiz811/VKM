@@ -1161,7 +1161,33 @@ namespace VKM.App
         // ── MEVCUT .bak'ı ONAR: zaten kurtarılmış (müşteriye verilmiş) bir .bak'ı BAŞTAN TARAMADAN düzeltir.
         //    Geri yükle → Fiş Bütünleme + Fiş tipi + başlık tutarı + hızlı-fiş bütünleme → yeniden .bak.
         //    Kaynak .bak'a dokunmaz; yeni outBak üretir. (105 GB şifreli MDF'i tekrar taramaya gerek yok.)
-        public const string BuildTag = "2026-11-27-O";   // her değişiklikte güncellenir → logda hangi kodu çalıştırdığın belli olur
+        public const string BuildTag = "2026-11-28-P";   // her değişiklikte güncellenir → logda hangi kodu çalıştırdığın belli olur
+
+        // Referans klasöründe paylaşımlı ORKAGENELTANIM veritabanı dosyasını bulur (.mdf/.bak). Firma program nesneleri buna bağlı.
+        static string? FindOrkaGenel(params string?[] hints)
+        {
+            var dirs = new List<string>();
+            foreach (var h in hints)
+            {
+                if (string.IsNullOrEmpty(h)) continue;
+                try { var dd = Path.GetDirectoryName(Path.GetFullPath(h)); if (dd != null && !dirs.Contains(dd)) dirs.Add(dd); } catch { }
+            }
+            foreach (var dir in dirs)
+            {
+                try
+                {
+                    foreach (var f in Directory.GetFiles(dir))
+                    {
+                        string nm = Path.GetFileName(f);
+                        if (nm.IndexOf("ORKAGENELTANIM", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                            (nm.EndsWith(".mdf", StringComparison.OrdinalIgnoreCase) || nm.EndsWith(".bak", StringComparison.OrdinalIgnoreCase)))
+                            return f;
+                    }
+                }
+                catch { }
+            }
+            return null;
+        }
         public static bool FixBak(string inBak, string outBak, string? refPath, Action<string> log, out string err)
         {
             err = "";
@@ -1208,6 +1234,7 @@ namespace VKM.App
                 {
                     string hDb = "VKM_Yrd_" + Environment.ProcessId + "_" + DateTime.Now.ToString("HHmmssfff");
                     string hWork = Path.Combine(work, "ref");
+                    bool ogtOk = false;
                     try
                     {
                         log("── Referanstan tamamlama (hesap planı/cari/şablon): " + Path.GetFileName(refPath) + " ──");
@@ -1215,14 +1242,32 @@ namespace VKM.App
                         if (LoadRef(refPath, hDb, hWork, out string herr))
                         {
                             FillFromHelper(db, hDb, log);
-                            try { CopyModulesFromHelper(db, hDb, log); } catch (Exception ex) { log("Program nesnesi aktarımı atlandı: " + First(ex.Message)); }
+                            // Paylaşımlı ORKAGENELTANIM referans/çıktı klasöründe varsa bağla → firma program nesneleri (ORKAGENELTANIM.dbo.*'a bağlı) temiz 2024'ten YENİDEN kurulabilsin (bozuk fonksiyonlar temizlenir)
+                            string? ogtPath = FindOrkaGenel(refPath, inBak, outBak);
+                            if (ogtPath != null)
+                            {
+                                try
+                                {
+                                    try { ExecSql(cs0, "IF DB_ID('ORKAGENELTANIM') IS NOT NULL BEGIN ALTER DATABASE [ORKAGENELTANIM] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [ORKAGENELTANIM]; END", 120); } catch { }
+                                    string ogtWork = Path.Combine(work, "ogt"); Directory.CreateDirectory(ogtWork); GrantAll(ogtWork);
+                                    if (LoadRef(ogtPath, "ORKAGENELTANIM", ogtWork, out string oerr)) { ogtOk = true; log("── Paylaşımlı veritabanı bağlandı: ORKAGENELTANIM (" + Path.GetFileName(ogtPath) + ") → program nesneleri temiz kurulacak ──"); }
+                                    else log("⚠ ORKAGENELTANIM açılamadı: " + oerr);
+                                }
+                                catch (Exception ex) { log("ORKAGENELTANIM bağlama atlandı: " + First(ex.Message)); }
+                            }
+                            else log("ℹ ORKAGENELTANIM dosyası referans klasöründe bulunamadı — program nesneleri yalnızca eksik olanlar eklenecek (bozuk olanlar düzelmez). ORKAGENELTANIM.mdf'i referansın yanına koyarsan temiz kurulur.");
+                            try { CopyModulesFromHelper(db, hDb, log, ogtOk); } catch (Exception ex) { log("Program nesnesi aktarımı atlandı: " + First(ex.Message)); }
                             // hesap planı bağlantı onarımı REFERANS AÇIKKEN: eksik hesap adları 2024'ten ("adı kurtarılamadı" yerine gerçek ad)
                             try { RepairPlanRefs(db, Path.GetDirectoryName(outBak) ?? ".", log, hDb); planDone = true; } catch (Exception ex) { log("Hesap planı bağlantı onarımı atlandı: " + First(ex.Message)); }
                         }
                         else log("⚠ Referans açılamadı: " + herr);
                     }
                     catch (Exception ex) { log("Referanstan tamamlama atlandı: " + First(ex.Message)); }
-                    finally { try { ExecSql(cs0, $"IF DB_ID('{hDb}') IS NOT NULL BEGIN ALTER DATABASE [{hDb}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{hDb}]; END", 120); } catch { } }
+                    finally
+                    {
+                        try { ExecSql(cs0, $"IF DB_ID('{hDb}') IS NOT NULL BEGIN ALTER DATABASE [{hDb}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{hDb}]; END", 120); } catch { }
+                        if (ogtOk) try { ExecSql(cs0, "IF DB_ID('ORKAGENELTANIM') IS NOT NULL BEGIN ALTER DATABASE [ORKAGENELTANIM] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [ORKAGENELTANIM]; END", 120); } catch { }
+                    }
                 }
                 // referans yoksa/açılamadıysa: fişlerde kullanılıp planda olmayan hesapları referanssız aç (361 vb. "kod oluşturulamadı" hatasını önler)
                 if (!planDone)
@@ -2823,23 +2868,26 @@ namespace VKM.App
 
         // ── Aynı firmanın başka yıl verisinde olup çıktıda OLMAYAN firmaya özel view/fonksiyon/prosedürler
         //    (ör. ORT_FISSATIR_ACIKLAMA view'ı: Orka her firmaya ayrıca kurar, şablonda yok, 2026'nın kataloğunda şifreli)
-        static void CopyModulesFromHelper(string R, string H, Action<string> log)
+        // rebuild=false: sadece R'de olmayan nesneleri ekler. rebuild=true (ORKAGENELTANIM bağlıyken): TÜM program nesnelerini
+        // temiz 2024'ten CREATE OR ALTER ile yeniden kurar → bozuk fonksiyon/prosedürler (ör. SELFCT) temizlenir, Orka fiş ekranı açılır.
+        static void CopyModulesFromHelper(string R, string H, Action<string> log, bool rebuild = false)
         {
             string cs = Conn(R);
             var have = new HashSet<string>(Query(cs, "SELECT name FROM sys.objects WHERE is_ms_shipped=0;", 300).Select(r => Convert.ToString(r[0]) ?? ""), StringComparer.OrdinalIgnoreCase);
             var mods = Query(Conn(H), "SELECT o.name, o.type, m.definition FROM sys.objects o JOIN sys.sql_modules m ON m.object_id=o.object_id WHERE o.is_ms_shipped=0 AND o.type IN ('FN','IF','TF','V','P','TR') AND m.definition IS NOT NULL;", 300)
                        .Select(r => (name: Convert.ToString(r[0]) ?? "", type: (Convert.ToString(r[1]) ?? "").Trim(), def: Convert.ToString(r[2]) ?? ""))
-                       .Where(m => m.name.Length > 0 && !have.Contains(m.name))
+                       .Where(m => m.name.Length > 0 && (rebuild || !have.Contains(m.name)))
+                       .Select(m => (m.name, m.type, def: rebuild ? Regex.Replace(m.def, @"\bCREATE\s+(PROC|PROCEDURE|FUNCTION|VIEW|TRIGGER)\b", "CREATE OR ALTER $1", RegexOptions.IgnoreCase) : m.def))
                        .OrderBy(m => m.type is "FN" or "IF" or "TF" ? 0 : m.type == "V" ? 1 : m.type == "P" ? 2 : 3).ToList();
             int ok = 0; var lastErr = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            for (int pass = 0; pass < 5 && mods.Count > 0; pass++)
+            for (int pass = 0; pass < 6 && mods.Count > 0; pass++)
             {
                 var next = mods.Where(m => { try { ExecSql(cs, m.def, 300); ok++; return false; } catch (Exception ex) { lastErr[m.name] = First(ex.Message); return true; } }).ToList();
                 if (next.Count == mods.Count) { mods = next; break; }
                 mods = next;
             }
             if (ok > 0 || mods.Count > 0)
-                log($"Firmaya özel program nesneleri (view/fonksiyon) yardımcı veriden: {ok} eklendi" + (mods.Count > 0 ? $" · {mods.Count} kurulamadı [" + string.Join("; ", mods.Take(4).Select(m => $"{m.name}({m.type}): {(lastErr.TryGetValue(m.name, out var e) ? e : "?")}")) + "]" : "") + ".");
+                log($"Program nesneleri (view/fonksiyon/prosedür) {(rebuild ? "temiz 2024'ten YENİDEN kuruldu" : "yardımcı veriden eklendi")}: {ok} {(rebuild ? "güncellendi" : "eklendi")}" + (mods.Count > 0 ? $" · {mods.Count} kurulamadı [" + string.Join("; ", mods.Take(4).Select(m => $"{m.name}({m.type}): {(lastErr.TryGetValue(m.name, out var e) ? e : "?")}")) + "]" : "") + ".");
         }
 
         // ── Fiş satırlarında kullanılıp hesap planında OLMAYAN hesaplar (planın o sayfası şifreli kalmış, önceki yılda da yok):
