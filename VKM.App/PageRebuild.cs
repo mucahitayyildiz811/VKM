@@ -1541,6 +1541,7 @@ namespace VKM.App
                 }
                 try { RepairPlanRefs(finalDb, Path.GetDirectoryName(outBak) ?? ".", log); } catch (Exception ex) { log("Hesap planı bağlantı onarımı atlandı: " + First(ex.Message)); }
                 try { RebuildHeadersFromQuickEntry(finalDb, log); } catch (Exception ex) { log("Hızlı fişten başlık üretimi atlandı: " + First(ex.Message)); }
+                try { RebuildHeadersFromOrphanLines(finalDb, log); } catch (Exception ex) { log("Yetim satırlardan başlık bütünleme atlandı: " + First(ex.Message)); }
                 try { RebuildLinesFromQuickEntry(finalDb, log); } catch (Exception ex) { log("Hızlı fişten satır üretimi atlandı: " + First(ex.Message)); }
                 try { FillNullDefaults(finalDb, log); } catch (Exception ex) { log("Boş alanlara varsayılan değer atlandı: " + First(ex.Message)); }
                 try { FixHeaderTotals(finalDb, log); } catch { }
@@ -2132,6 +2133,65 @@ namespace VKM.App
             try { n = Convert.ToInt64(Query(cs, sql, 300)[0][0]); }
             catch (Exception ex) { try { ExecSql(cs, "ENABLE TRIGGER ALL ON dbo.ORT_FISBASLIK;" + (ident ? " SET IDENTITY_INSERT dbo.ORT_FISBASLIK OFF;" : ""), 60); } catch { } log("Hızlı fişten başlık üretilemedi: " + First(ex.Message)); return; }
             if (n > 0) log($"Hızlı Fiş kayıtlarından {n} kayıp fiş başlığı yeniden yazıldı (fiş no sona eklendi → Orka'da Fiş/Evrak Kayıt › Servis › 'Fiş Numaralarını Sırala').");
+        }
+
+        // ── FİŞ BÜTÜNLEME: ORT_FISSATIR'da başlığı (ORT_FISBASLIK) eksik kalan "yetim" satırlar
+        //    (aralıklı şifrelemede başlık sayfası şifreli kalmış; satır sayfası sağlam). Satırlar fiş
+        //    anahtarına (IDFisbaslik) göre gruplanıp eksik başlık SENTEZLENİR: tarih + açıklama satırlardan,
+        //    tutar = borç toplamı. Satırın kendi IDFisbaslik'i başlık ID'si yapılır → bağlantı birebir korunur.
+        //    Yalnız başlığı GERÇEKTEN olmayan anahtarlar için üretir; mevcut başlıklara dokunmaz. (Hızlı-fiş
+        //    bütünlemesinden farkı: kaynağı ORT_FISSATIR, yani normal yevmiye satırları.)
+        static void RebuildHeadersFromOrphanLines(string R, Action<string> log)
+        {
+            string cs = Conn(R);
+            var has = Query(cs, "SELECT OBJECT_ID('dbo.ORT_FISBASLIK'), OBJECT_ID('dbo.ORT_FISSATIR'), COL_LENGTH('dbo.ORT_FISSATIR','IDFisbaslik'), COL_LENGTH('dbo.ORT_FISSATIR','fisbelgetarihi');", 60)[0];
+            if (has.Any(x => x == DBNull.Value)) return;
+            var cols = Query(cs, "SELECT name, system_type_id, is_identity, is_computed FROM sys.columns WHERE object_id=OBJECT_ID('dbo.ORT_FISBASLIK') ORDER BY column_id;", 60)
+                       .Select(q => (name: Convert.ToString(q[0]) ?? "", type: Convert.ToInt32(q[1]), ident: Convert.ToBoolean(q[2]), comp: Convert.ToBoolean(q[3])))
+                       .Where(k => !k.comp && k.type != 189).ToList();
+            if (!cols.Any(k => k.name.Equals("ID", StringComparison.OrdinalIgnoreCase))) return;
+            // diğer başlık kolonları için şablon (mevcut bir başlık)
+            var tpl = Query(cs, "SELECT TOP 1 ID FROM dbo.ORT_FISBASLIK ORDER BY ID DESC;", 60);
+            if (tpl.Count == 0) return;
+            long tid = Convert.ToInt64(tpl[0][0]);
+            var scn = new HashSet<string>(Query(cs, "SELECT name FROM sys.columns WHERE object_id=OBJECT_ID('dbo.ORT_FISSATIR');", 60).Select(q => Convert.ToString(q[0]) ?? ""), StringComparer.OrdinalIgnoreCase);
+            string acikCol = scn.Contains("fisaciklamasi") ? "fisaciklamasi" : (scn.Contains("aciklama") ? "aciklama" : "");
+            string belgenoCol = scn.Contains("fisbelgeno") ? "fisbelgeno" : "";
+            string tutarExpr = scn.Contains("tlborctutar") ? "SUM(ISNULL(s.tlborctutar,0))" : "0";
+            string gAcik = acikCol.Length > 0 ? $"MAX(NULLIF(LTRIM(RTRIM(s.{acikCol})),N''))" : "NULL";
+            string gBelge = belgenoCol.Length > 0 ? $"MAX(s.{belgenoCol})" : "NULL";
+            // başlığı GERÇEKTEN olmayan fiş anahtarlarını, satırlarından grupla
+            string grp = $@"SELECT s.IDFisbaslik AS fid, MAX(s.fisbelgetarihi) AS tarih, {tutarExpr} AS tutar, {gAcik} AS acik, {gBelge} AS belgeno
+                            FROM dbo.ORT_FISSATIR s
+                            WHERE s.IDFisbaslik > 0 AND s.fisbelgetarihi IS NOT NULL
+                              AND NOT EXISTS (SELECT 1 FROM dbo.ORT_FISBASLIK b WHERE b.ID=s.IDFisbaslik)
+                            GROUP BY s.IDFisbaslik";
+            string Q(string x) => "[" + x.Replace("]", "]]") + "]";
+            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["ID"] = "g.fid",
+                ["fistarihi"] = "g.tarih",
+                ["fisbelgetarihi"] = "g.tarih",
+                ["fisvadetarihi"] = "g.tarih",
+                ["fisdonemi"] = "DATEADD(MONTH, DATEDIFF(MONTH, 0, g.tarih), 0)",
+                ["fiskayittarihi"] = "GETDATE()",
+                ["fisaciklama"] = "ISNULL(g.acik, t.fisaciklama)",
+                ["fistutar"] = "ISNULL(g.tutar, 0)",
+                ["fisbelgeno"] = belgenoCol.Length > 0 ? "g.belgeno" : "NULL",
+                ["fisno"] = "(SELECT ISNULL(MAX(fisno),0) FROM dbo.ORT_FISBASLIK)+ROW_NUMBER() OVER (ORDER BY g.tarih, g.fid)",
+                ["fisyevmiyeno"] = "(SELECT ISNULL(MAX(fisyevmiyeno),0) FROM dbo.ORT_FISBASLIK)+ROW_NUMBER() OVER (ORDER BY g.tarih, g.fid)",
+            };
+            var vals = cols.Select(k => map.TryGetValue(k.name, out var v) ? v : k.type == 36 ? "NEWID()" : "t." + Q(k.name)).ToList();
+            bool ident = cols.Any(k => k.ident);
+            string sql = (ident ? "SET IDENTITY_INSERT dbo.ORT_FISBASLIK ON; " : "") + "DISABLE TRIGGER ALL ON dbo.ORT_FISBASLIK; " +
+                $@"INSERT INTO dbo.ORT_FISBASLIK ({string.Join(",", cols.Select(k => Q(k.name)))})
+                   SELECT {string.Join(",", vals)} FROM ({grp}) g
+                   CROSS JOIN (SELECT * FROM dbo.ORT_FISBASLIK WHERE ID={tid}) t;
+                   SELECT @@ROWCOUNT; ENABLE TRIGGER ALL ON dbo.ORT_FISBASLIK;" + (ident ? " SET IDENTITY_INSERT dbo.ORT_FISBASLIK OFF;" : "");
+            long n = 0;
+            try { n = Convert.ToInt64(Query(cs, sql, 300)[0][0]); }
+            catch (Exception ex) { try { ExecSql(cs, "ENABLE TRIGGER ALL ON dbo.ORT_FISBASLIK;" + (ident ? " SET IDENTITY_INSERT dbo.ORT_FISBASLIK OFF;" : ""), 60); } catch { } log("Yetim satırlardan başlık üretilemedi: " + First(ex.Message)); return; }
+            if (n > 0) log($"Fiş Bütünleme: başlıksız yevmiye satırlarından {n} kayıp fiş başlığı bütünlendi (tarih+açıklama satırlardan, tutar=borç toplamı; fiş no sona eklendi → Orka'da Fiş/Evrak Kayıt › Servis › 'Fiş Numaralarını Sırala').");
         }
 
         // fiş başlığında tutar boş/0 ama satırları duruyor → başlık tutarı = satırların borç toplamı
