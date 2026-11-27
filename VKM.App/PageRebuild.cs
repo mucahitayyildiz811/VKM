@@ -2102,7 +2102,7 @@ namespace VKM.App
                         // 2) FALLBACK: doğru adlı kolonu ekle + veriyi kopyala + bozuğu düşürmeyi dene
                         try
                         {
-                            var t = typeOf.TryGetValue(from, out var ti) ? ti : ("nvarchar", 100, 0, 0);
+                            var t = typeOf.TryGetValue(from, out var ti) ? ti : (ty: "nvarchar", ml: 100, pr: 0, sc: 0);
                             string ts = t.ty switch
                             {
                                 "nvarchar" or "nchar" => t.ml == -1 ? t.ty + "(max)" : $"{t.ty}({t.ml / 2})",
