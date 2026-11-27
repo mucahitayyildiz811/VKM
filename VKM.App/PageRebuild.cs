@@ -1161,7 +1161,7 @@ namespace VKM.App
         // ── MEVCUT .bak'ı ONAR: zaten kurtarılmış (müşteriye verilmiş) bir .bak'ı BAŞTAN TARAMADAN düzeltir.
         //    Geri yükle → Fiş Bütünleme + Fiş tipi + başlık tutarı + hızlı-fiş bütünleme → yeniden .bak.
         //    Kaynak .bak'a dokunmaz; yeni outBak üretir. (105 GB şifreli MDF'i tekrar taramaya gerek yok.)
-        public const string BuildTag = "2026-11-27-M";   // her değişiklikte güncellenir → logda hangi kodu çalıştırdığın belli olur
+        public const string BuildTag = "2026-11-27-N";   // her değişiklikte güncellenir → logda hangi kodu çalıştırdığın belli olur
         public static bool FixBak(string inBak, string outBak, string? refPath, Action<string> log, out string err)
         {
             err = "";
@@ -2052,16 +2052,52 @@ namespace VKM.App
                     if (hNames.Contains(rn) || rNames.Contains(hn)) continue;      // gerçek/farklı kolon → dokunma
                     bool similar = rn.Length == hn.Length && rn.Where((ch, k) => ch != hn[k]).Count() is >= 1 and <= 2;  // natrah_03≈matrah_03
                     if (!(sameCount || Corrupt(rn) || similar)) continue;           // güvenli hizalama / adı bozuk / referansa çok benzer
-                    string o = ("dbo." + kv.Key + "." + rn).Replace("'", "''"), nn = hn.Replace("'", "''");
-                    try { ExecSql(cs, $"EXEC sp_rename N'{o}', N'{nn}', 'COLUMN';", 60); renamed++; tset.Add(kv.Key); rNames.Remove(rn); rNames.Add(hn); if (ex0.Count < 4) ex0.Add($"{rn}→{hn}"); }
-                    catch { }
+                    if (RobustRenameColumn(cs, kv.Key, rn, hn, log)) { renamed++; tset.Add(kv.Key); rNames.Remove(rn); rNames.Add(hn); if (ex0.Count < 4) ex0.Add($"{rn}→{hn}"); }
                 }
             }
             if (renamed > 0) log($"Bozuk kolon ADI düzeltildi: {renamed} kolon ({tset.Count} tabloda) referanstaki doğru adıyla değiştirildi" + (ex0.Count > 0 ? " (ör. " + string.Join(", ", ex0) + ")" : "") + " — veri korundu, Orka 'Field not found' hataları biter.");
         }
 
+        // Bir kolonu güvenle yeniden adlandırır. sp_rename DENER + SONUCU DOĞRULAR; olmadıysa ekle+kopyala+sil'e düşer.
+        // sp_rename bazı bozuk adlarda sessizce başarısız oluyor; bu yüzden doğrulama + yedek yol şart.
+        static bool RobustRenameColumn(string cs, string tbl, string from, string to, Action<string> log)
+        {
+            string Br(string s) => "[" + s.Replace("]", "]]") + "]";
+            string Esc2(string s) => s.Replace("'", "''");
+            int Exists(string col) { try { return Convert.ToInt32(Query(cs, $"SELECT COUNT(*) FROM sys.columns WHERE object_id=OBJECT_ID('dbo.{Esc2(tbl)}') AND name=N'{Esc2(col)}';", 60)[0][0]); } catch { return -1; } }
+            if (Exists(to) > 0) return true;                       // hedef zaten var
+            // 1) sp_rename dene + DOĞRULA
+            try
+            {
+                ExecSql(cs, $"EXEC sp_rename N'[dbo].{Br(tbl)}.{Br(from)}', N'{Esc2(to)}', 'COLUMN';", 60);
+                if (Exists(to) > 0) return true;                   // gerçekten değişti
+            }
+            catch (Exception e) { log($"  sp_rename {tbl}.{from}→{to} hata: {First(e.Message)}"); }
+            // 2) ekle + kopyala + bozuğu düşür (bozuk karakterli adı DML'de köşeli parantez güvenle taşır)
+            try
+            {
+                var tr = Query(cs, $"SELECT TYPE_NAME(system_type_id), max_length, precision, scale FROM sys.columns WHERE object_id=OBJECT_ID('dbo.{Esc2(tbl)}') AND name=N'{Esc2(from)}';", 60);
+                if (tr.Count == 0) { log($"  {tbl}.{from}: kaynak kolon bulunamadı"); return false; }
+                string ty = (Convert.ToString(tr[0][0]) ?? "").ToLowerInvariant(); int ml = Convert.ToInt32(tr[0][1]), pr = Convert.ToInt32(tr[0][2]), sc = Convert.ToInt32(tr[0][3]);
+                string ts = ty switch
+                {
+                    "nvarchar" or "nchar" => ml == -1 ? ty + "(max)" : $"{ty}({ml / 2})",
+                    "varchar" or "char" or "varbinary" or "binary" => ml == -1 ? ty + "(max)" : $"{ty}({ml})",
+                    "decimal" or "numeric" => $"{ty}({pr},{sc})",
+                    "datetime2" or "time" or "datetimeoffset" => $"{ty}({sc})",
+                    _ => ty
+                };
+                ExecSql(cs, $"ALTER TABLE dbo.{Br(tbl)} ADD {Br(to)} {ts} NULL;", 120);
+                ExecSql(cs, $"UPDATE dbo.{Br(tbl)} SET {Br(to)}={Br(from)};", 600);
+                try { ExecSql(cs, $"ALTER TABLE dbo.{Br(tbl)} DROP COLUMN {Br(from)};", 120); } catch { }   // indeksli/kısıtlıysa kalsın, zararsız
+                if (Exists(to) > 0) { log($"  ✓ ekle+kopyala: {tbl}.{from} → {to} ({ts})"); return true; }
+                return false;
+            }
+            catch (Exception e) { log($"  {tbl}.{from}→{to} ekle+kopyala HATA: {First(e.Message)}"); return false; }
+        }
+
         // Orka'nın ekran sorgularının adıyla aradığı KRİTİK kolonlar — bunların adı bozuksa (ör. hesapūodu) ekran boş gelir.
-        // Referans OLMADAN da düzeltilmeli: doğru adları gömülü; bozuk eşleşen tek kolonu sp_rename ile düzeltir. Tüm Orka firmalarında şema aynı.
+        // Referans OLMADAN da düzeltilmeli: doğru adları gömülü; bozuk eşleşen tek kolonu düzeltir. Tüm Orka firmalarında şema aynı.
         static readonly Dictionary<string, string[]> KnownCriticalCols = new(StringComparer.OrdinalIgnoreCase)
         {
             ["ORT_FISSATIR"] = new[] { "hesapkodu", "karsihesapkodu", "hesapkebirkodu", "fisaciklamasi", "fisbelgetarihi", "tlborctutar", "tlalactutar", "borcalacak", "kayitsirano", "defterbeyankodu", "kdvhesapkodu" },
@@ -2073,16 +2109,15 @@ namespace VKM.App
         {
             string cs = Conn(R);
             bool CorruptCh(char c) => !(c < 128 && (char.IsLetterOrDigit(c) || c == '_'));
-            string Br(string s) => "[" + s.Replace("]", "]]") + "]";
-            int total = 0; var ex = new List<string>(); var errs = new List<string>();
+            int total = 0; var done = new List<string>();
             foreach (var kv in KnownCriticalCols)
             {
                 string tbl = kv.Key;
-                var rows = Query(cs, $"SELECT c.name, TYPE_NAME(c.system_type_id), c.max_length, c.precision, c.scale FROM sys.columns c WHERE c.object_id=OBJECT_ID('dbo.{tbl}');", 60);
+                List<object[]> rows;
+                try { rows = Query(cs, $"SELECT c.name FROM sys.columns c WHERE c.object_id=OBJECT_ID('dbo.{tbl}');", 60); }
+                catch (Exception e) { log($"TANI · {tbl} kolonları okunamadı: {First(e.Message)}"); continue; }
                 if (rows.Count == 0) continue;
                 var actual = rows.Select(r => Convert.ToString(r[0]) ?? "").Where(s => s.Length > 0).ToList();
-                var typeOf = new Dictionary<string, (string ty, int ml, int pr, int sc)>(StringComparer.OrdinalIgnoreCase);
-                foreach (var r in rows) { string nm = Convert.ToString(r[0]) ?? ""; if (nm.Length > 0 && !typeOf.ContainsKey(nm)) typeOf[nm] = ((Convert.ToString(r[1]) ?? "").ToLowerInvariant(), Convert.ToInt32(r[2]), Convert.ToInt32(r[3]), Convert.ToInt32(r[4])); }
                 var actualSet = new HashSet<string>(actual, StringComparer.OrdinalIgnoreCase);
                 foreach (string want in kv.Value)
                 {
@@ -2091,37 +2126,15 @@ namespace VKM.App
                     var cand = actual.Where(a => a.Length == want.Length
                                  && Enumerable.Range(0, want.Length).All(i => a[i] == want[i] || CorruptCh(a[i]))
                                  && Enumerable.Range(0, want.Length).Any(i => a[i] != want[i])).Distinct().ToList();
-                    if (cand.Count != 1) continue;                          // tek net aday değilse dokunma
+                    if (cand.Count == 0) continue;
+                    if (cand.Count > 1) { log($"TANI · {tbl}.{want}: birden çok bozuk aday ({string.Join("/", cand)}) — atlandı"); continue; }
                     string from = cand[0];
-                    bool ok = false;
-                    // 1) sp_rename (köşeli parantezli, bozuk karakteri güvenli tutar)
-                    try { ExecSql(cs, $"EXEC sp_rename N'{$"[dbo].{Br(tbl)}.{Br(from)}".Replace("'", "''")}', N'{want.Replace("'", "''")}', 'COLUMN';", 60); ok = true; }
-                    catch (Exception e1)
-                    {
-                        errs.Add($"{from}→{want} sp_rename→{First(e1.Message)}");
-                        // 2) FALLBACK: doğru adlı kolonu ekle + veriyi kopyala + bozuğu düşürmeyi dene
-                        try
-                        {
-                            var t = typeOf.TryGetValue(from, out var ti) ? ti : (ty: "nvarchar", ml: 100, pr: 0, sc: 0);
-                            string ts = t.ty switch
-                            {
-                                "nvarchar" or "nchar" => t.ml == -1 ? t.ty + "(max)" : $"{t.ty}({t.ml / 2})",
-                                "varchar" or "char" or "varbinary" or "binary" => t.ml == -1 ? t.ty + "(max)" : $"{t.ty}({t.ml})",
-                                "decimal" or "numeric" => $"{t.ty}({t.pr},{t.sc})",
-                                _ => t.ty
-                            };
-                            ExecSql(cs, $"ALTER TABLE dbo.{Br(tbl)} ADD {Br(want)} {ts} NULL;", 120);
-                            ExecSql(cs, $"UPDATE dbo.{Br(tbl)} SET {Br(want)}={Br(from)};", 600);
-                            try { ExecSql(cs, $"ALTER TABLE dbo.{Br(tbl)} DROP COLUMN {Br(from)};", 120); } catch { }  // indeksliyse kalsın
-                            ok = true; if (!ex.Contains($"{from}→{want}(kopya)")) ex.Add($"{from}→{want}(kopya)");
-                        }
-                        catch (Exception e2) { errs.Add($"{from}→{want} kopya→{First(e2.Message)}"); }
-                    }
-                    if (ok) { actualSet.Remove(from); actualSet.Add(want); total++; if (ex.Count < 6 && !ex.Any(x => x.StartsWith(from))) ex.Add($"{from}→{want}"); }
+                    log($"Kritik kolon: {tbl}.{from} → {want} onarılıyor…");
+                    if (RobustRenameColumn(cs, tbl, from, want, log)) { actualSet.Remove(from); actualSet.Add(want); total++; done.Add($"{from}→{want}"); }
                 }
             }
-            if (total > 0) log($"Bilinen bozuk kolon ADI düzeltildi (referanssız, gömülü şema): {total} kolon" + (ex.Count > 0 ? " (ör. " + string.Join(", ", ex.Take(5)) + ")" : "") + " — Orka fiş düzeltme ekranı artık dolu gelir.");
-            if (errs.Count > 0) log("TANI · kolon onarım notları: " + string.Join(" | ", errs.Take(6)));
+            if (total > 0) log($"Kritik kolon onarımı: {total} kolon düzeltildi (" + string.Join(", ", done.Take(6)) + ") — Orka fiş düzeltme ekranı artık dolu gelmeli.");
+            else log("Kritik kolon onarımı: bu veride düzeltilecek bozuk kritik kolon ADI bulunamadı.");
         }
 
         // Fiş satırı → hesap planı KÖPRÜSÜ. Orka'nın fiş DÜZELTME ekranı satırı IDHesapkodu ile plana bağlar;
