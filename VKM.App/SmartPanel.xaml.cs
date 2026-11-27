@@ -1,6 +1,7 @@
 using System;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -141,13 +142,41 @@ namespace VKM.App
             return "Disk sağlıklı görünüyor → işlem gerekmez. (performans sorunu varsa tam Yüzey Tara + kablo kontrol)";
         }
 
-        private void Reset_Click(object sender, RoutedEventArgs e)
+        // WD ROYL servis-alanı OKUMA probe'u (firmware'e yazmaz). Dumpları masaüstüne kaydeder.
+        private bool _wdBusy;
+        private async void WdProbe_Click(object sender, RoutedEventArgs e)
         {
-            MessageBox.Show(
-                "SMART özniteliklerini (reallocated/pending gibi) gerçekten sıfırlamak ÜRETİCİ-ÖZEL komut ister " +
-                "(WD/Seagate/Toshiba… her biri farklı). Bu, SATA üzerinden VSC / ROM-SA kanalıyla aile aile eklenecek — " +
-                "bir sonraki adım. Şu an panel tüm SMART değerlerini okuyup gösteriyor.",
-                "SMART sıfırla", MessageBoxButton.OK, MessageBoxImage.Information);
+            if (_wdBusy) return;
+            if (DiskCombo.SelectedItem is not DiskInfo d) { MessageBox.Show("Önce bir disk seç."); return; }
+            if (!d.Model.ToUpperInvariant().Contains("WD") && !d.Model.ToUpperInvariant().Contains("WESTERN"))
+            {
+                var w = MessageBox.Show("Seçili disk WD görünmüyor (" + d.Model + ").\nWD VSC protokolü sadece WD ROYL disklerde çalışır. Yine de denensin mi?",
+                                        "WD Servis", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                if (w != MessageBoxResult.Yes) return;
+            }
+            _wdBusy = true;
+            var btn = sender as Button; var old = btn?.Content;
+            if (btn != null) { btn.IsEnabled = false; btn.Content = "⏳ WD okunuyor…"; }
+            string dev = d.DeviceId, model = d.Model;
+            Log.Info("WD Servis: " + model + " · VSC okuma probe'u başladı");
+
+            var (report, dir, smart) = await Task.Run(() => Wd.Probe(dev));
+
+            // dumpları masaüstüne kaydet (varsa)
+            string saved = "";
+            try
+            {
+                string desk = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+                string tag = new string(model.Where(c => char.IsLetterOrDigit(c)).ToArray());
+                if (dir != null) { string p = System.IO.Path.Combine(desk, "VKM_WD_DIR_" + tag + ".bin"); System.IO.File.WriteAllBytes(p, dir); saved += "\nKaydedildi: " + p; }
+                if (smart != null) { string p = System.IO.Path.Combine(desk, "VKM_WD_SMART_" + tag + ".bin"); System.IO.File.WriteAllBytes(p, smart); saved += "\nKaydedildi: " + p; }
+            }
+            catch (Exception ex) { saved = "\n(dump kaydı başarısız: " + ex.Message + ")"; }
+
+            if (btn != null) { btn.IsEnabled = true; btn.Content = old ?? "🔧 WD Servis (oku)"; }
+            _wdBusy = false;
+            Log.Ok("WD Servis: " + model + " · probe bitti");
+            MessageBox.Show(report + (saved.Length > 0 ? "\n" + saved : ""), "🔧 WD Servis (okuma) — " + model, MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         private void Load()

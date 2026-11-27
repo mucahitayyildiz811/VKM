@@ -22,7 +22,6 @@ namespace VKM.App
         public SurfaceScan(Func<Stream> open, long total, int sector, int slowMs = 60, int badMs = 800)
         {
             _open = open; Total = total; Sector = sector < 512 ? 512 : sector;
-            _slowMs = slowMs; _badMs = badMs;
 
             // blok boyutu: ~20000 blok hedefle ama 1MB..64MB arası tut (ilerleme görünür olsun)
             long bb = Total / 20000;
@@ -33,6 +32,12 @@ namespace VKM.App
             BlockBytes = bb;
             Blocks = (int)Math.Min(2_000_000, (Total + BlockBytes - 1) / BlockBytes);
             Status = new byte[Blocks];
+
+            // eşikleri blok boyutuna göre ölçekle — yoksa büyük blokta her okuma "yavaş" görünür.
+            // sağlıklı HDD ~50-150 MB/s → ~7-20 ms/MB; yavaş = belirgin üstü, bad = çok üstü/okunamaz.
+            double mb = BlockBytes / 1048576.0;
+            _slowMs = (int)Math.Max(slowMs, mb * 40);
+            _badMs = (int)Math.Max(badMs, mb * 300);
         }
 
         public void Run(Action report)
