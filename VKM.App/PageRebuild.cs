@@ -1161,7 +1161,7 @@ namespace VKM.App
         // ── MEVCUT .bak'ı ONAR: zaten kurtarılmış (müşteriye verilmiş) bir .bak'ı BAŞTAN TARAMADAN düzeltir.
         //    Geri yükle → Fiş Bütünleme + Fiş tipi + başlık tutarı + hızlı-fiş bütünleme → yeniden .bak.
         //    Kaynak .bak'a dokunmaz; yeni outBak üretir. (105 GB şifreli MDF'i tekrar taramaya gerek yok.)
-        public static bool FixBak(string inBak, string outBak, Action<string> log, out string err)
+        public static bool FixBak(string inBak, string outBak, string? refPath, Action<string> log, out string err)
         {
             err = "";
             if (!File.Exists(inBak)) { err = ".bak bulunamadı: " + inBak; return false; }
@@ -1196,6 +1196,28 @@ namespace VKM.App
                 ExecSql(cs0, $"RESTORE DATABASE [{db}] FROM DISK = N'{Esc(inBak)}' WITH {string.Join(", ", moves)}, REPLACE, RECOVERY;", 14400);
                 created = true;
                 log("✓ Geri yüklendi. Onarım adımları çalışıyor…");
+
+                // 2024/sağlam referans verildiyse: hesap planı + cari + şablon/tanım tamamla (collation artık uyumlu)
+                if (!string.IsNullOrEmpty(refPath) && File.Exists(refPath))
+                {
+                    string hDb = "VKM_Yrd_" + Environment.ProcessId + "_" + DateTime.Now.ToString("HHmmssfff");
+                    string hWork = Path.Combine(work, "ref");
+                    try
+                    {
+                        log("── Referanstan tamamlama (hesap planı/cari/şablon): " + Path.GetFileName(refPath) + " ──");
+                        Directory.CreateDirectory(hWork); GrantAll(hWork);
+                        if (LoadRef(refPath, hDb, hWork, out string herr))
+                        {
+                            FillFromHelper(db, hDb, log);
+                            try { CopyModulesFromHelper(db, hDb, log); } catch (Exception ex) { log("Program nesnesi aktarımı atlandı: " + First(ex.Message)); }
+                        }
+                        else log("⚠ Referans açılamadı: " + herr);
+                    }
+                    catch (Exception ex) { log("Referanstan tamamlama atlandı: " + First(ex.Message)); }
+                    finally { try { ExecSql(cs0, $"IF DB_ID('{hDb}') IS NOT NULL BEGIN ALTER DATABASE [{hDb}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{hDb}]; END", 120); } catch { } }
+                }
+                // fişlerde kullanılıp planda olmayan hesapları aç (361 vb. "kod oluşturulamadı" hatasını önler)
+                try { RepairPlanRefs(db, Path.GetDirectoryName(outBak) ?? ".", log); } catch (Exception ex) { log("Hesap planı bağlantı onarımı atlandı: " + First(ex.Message)); }
 
                 try { RebuildHeadersFromQuickEntry(db, log); } catch (Exception ex) { log("Hızlı fişten başlık üretimi atlandı: " + First(ex.Message)); }
                 try { RebuildHeadersFromOrphanLines(db, log); } catch (Exception ex) { log("Yetim satırlardan başlık bütünleme atlandı: " + First(ex.Message)); }
@@ -2023,9 +2045,10 @@ namespace VKM.App
                 var common = rc.Where(x => !x.comp && x.type != 189 && hset.Contains(x.name)).ToList();
                 if (!common.Any(x => x.name.Equals("ID", StringComparison.OrdinalIgnoreCase))) continue;
                 var txt = common.Where(x => IsText(x.type) && !Regex.IsMatch(x.name, "user|damga|date|tarih|aciklama|not", RegexOptions.IgnoreCase)).Select(x => x.name).Take(3).ToList();
-                string sameCond = txt.Count > 0 ? string.Join(" AND ", txt.Select(n => $"ISNULL(CAST(r.{Q(n)} AS nvarchar(4000)),N'')=ISNULL(CAST(h.{Q(n)} AS nvarchar(4000)),N'')")) : "1=0";
+                // İKİ DB farklı collation olabilir (kurtarılan Turkish_CI_AS, 2024 yedeği Turkish_CS_AS_WS) → her metin karşılaştırmasına COLLATE DATABASE_DEFAULT şart, yoksa "collation conflict" ve tamamlama hiç çalışmaz.
+                string sameCond = txt.Count > 0 ? string.Join(" AND ", txt.Select(n => $"ISNULL(CAST(r.{Q(n)} AS nvarchar(4000)),N'')=ISNULL(CAST(h.{Q(n)} AS nvarchar(4000)) COLLATE DATABASE_DEFAULT,N'')")) : "1=0";
                 // doldururken: anahtar metin kurtarmada boş/bozuk kaldıysa çelişki sayılmaz (tablo zaten aynı kayıt olduğu doğrulanmış)
-                string fillCond = txt.Count > 0 ? string.Join(" AND ", txt.Select(n => $"(ISNULL(CAST(r.{Q(n)} AS nvarchar(4000)),N'')=ISNULL(CAST(h.{Q(n)} AS nvarchar(4000)),N'') OR LTRIM(ISNULL(CAST(r.{Q(n)} AS nvarchar(4000)),N''))=N'' OR CAST(r.{Q(n)} AS nvarchar(4000)) LIKE N'%'+NCHAR(65533)+N'%')")) : "1=0";
+                string fillCond = txt.Count > 0 ? string.Join(" AND ", txt.Select(n => $"(ISNULL(CAST(r.{Q(n)} AS nvarchar(4000)),N'')=ISNULL(CAST(h.{Q(n)} AS nvarchar(4000)) COLLATE DATABASE_DEFAULT,N'') OR LTRIM(ISNULL(CAST(r.{Q(n)} AS nvarchar(4000)),N''))=N'' OR CAST(r.{Q(n)} AS nvarchar(4000)) LIKE N'%'+NCHAR(65533)+N'%')")) : "1=0";
                 string T = "dbo." + Q(t), HT = HQ + ".dbo." + Q(t);
                 long rN = Convert.ToInt64(Query(cs, $"SELECT COUNT_BIG(*) FROM {T};", 300)[0][0]);
                 bool master = MasterRx.IsMatch(t), ok;
@@ -2039,12 +2062,14 @@ namespace VKM.App
                 }
                 if (!ok) continue;
                 // eklemede çift kayıt koruması: ID, benzersiz indeksler, "…kod" adlı ilk metin kolonu
+                bool IsTextCol(string c) => common.Any(x => x.name.Equals(c, StringComparison.OrdinalIgnoreCase) && IsText(x.type));
+                string Eq(string c) => IsTextCol(c) ? $"r.{Q(c)}=h.{Q(c)} COLLATE DATABASE_DEFAULT" : $"r.{Q(c)}=h.{Q(c)}";
                 var guards = new List<string> { $"NOT EXISTS (SELECT 1 FROM {T} r WHERE r.[ID]=h.[ID])" };
                 if (uniq.TryGetValue(t, out var ul))
                     foreach (var key in ul.Where(k => k.Count > 0 && k.All(c => common.Any(x => x.name.Equals(c, StringComparison.OrdinalIgnoreCase)))))
-                        guards.Add("NOT EXISTS (SELECT 1 FROM " + T + " r WHERE " + string.Join(" AND ", key.Select(c => $"r.{Q(c)}=h.{Q(c)}")) + ")");
+                        guards.Add("NOT EXISTS (SELECT 1 FROM " + T + " r WHERE " + string.Join(" AND ", key.Select(Eq)) + ")");
                 var kod = common.FirstOrDefault(x => IsText(x.type) && Regex.IsMatch(x.name, "kod|kodu$", RegexOptions.IgnoreCase)).name;
-                if (kod != null) guards.Add($"NOT EXISTS (SELECT 1 FROM {T} r WHERE r.{Q(kod)}=h.{Q(kod)})");
+                if (kod != null) guards.Add($"NOT EXISTS (SELECT 1 FROM {T} r WHERE r.{Q(kod)}=h.{Q(kod)} COLLATE DATABASE_DEFAULT)");
                 string where = string.Join(" AND ", guards);
                 bool ident = rc.Any(x => x.ident && hset.Contains(x.name));
                 string cl = string.Join(",", common.Select(x => Q(x.name))), sel = string.Join(",", common.Select(x => "h." + Q(x.name)));

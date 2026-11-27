@@ -460,6 +460,16 @@ namespace VKM.App
             if (_outDir != null && Directory.Exists(_outDir)) d.InitialDirectory = _outDir;
             if (d.ShowDialog() != true || d.FileNames.Length == 0) return;
             var baks = d.FileNames.ToList();
+            // opsiyonel referans (aynı firmanın SAĞLAM başka yıl verisi — hesap planı/cari/şablon tamamlar)
+            string? refPath = null;
+            if (MessageBox.Show("Aynı firmanın SAĞLAM 2024 (ya da başka yıl) yedeğini referans olarak eklemek ister misin?\n\nHesap planı / cari / şablonu tamamlar — '361 kodu oluşturulamadı' gibi hataları giderir.\n(Birden çok .bak seçtiysen, referans firma koduna göre eşleşir.)",
+                                "Referans ekle?", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+            {
+                var rd = new Microsoft.Win32.OpenFileDialog { Title = "Sağlam referans (2024 .bak veya .mdf)", Filter = "SQL yedek/veri (*.bak;*.mdf)|*.bak;*.mdf|Tüm dosyalar (*.*)|*.*" };
+                if (_outDir != null && Directory.Exists(_outDir)) rd.InitialDirectory = _outDir;
+                if (rd.ShowDialog() == true) refPath = rd.FileName;
+            }
+            string FirmCode(string p) { var m = System.Text.RegularExpressions.Regex.Match(Path.GetFileName(p), @"ORKA[_-]?(\d+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase); return m.Success ? m.Groups[1].Value : ""; }
             SetBusy(true); FixBakBtn.IsEnabled = false;
             LogText.Text = "";
             Log("══════ MEVCUT .bak ONAR ══════");
@@ -469,8 +479,10 @@ namespace VKM.App
                 foreach (var inBak in baks)
                 {
                     string outBak = Path.Combine(Path.GetDirectoryName(inBak) ?? ".", Path.GetFileNameWithoutExtension(inBak) + "_onarildi.bak");
-                    Log("── " + Path.GetFileName(inBak) + " ──");
-                    bool r = await Task.Run(() => PageRebuild.FixBak(inBak, outBak, Log, out _));
+                    // referansı doğru firmaya eşle (tek .bak ise ya da firma kodu tutuyorsa kullan)
+                    string? useRef = (refPath != null && (baks.Count == 1 || FirmCode(refPath).Length == 0 || FirmCode(refPath) == FirmCode(inBak))) ? refPath : null;
+                    Log("── " + Path.GetFileName(inBak) + (useRef != null ? "  (referans: " + Path.GetFileName(useRef) + ")" : "") + " ──");
+                    bool r = await Task.Run(() => PageRebuild.FixBak(inBak, outBak, useRef, Log, out _));
                     if (r) ok++;
                 }
                 MessageBox.Show($"{ok}/{baks.Count} .bak onarıldı (yanına _onarildi.bak olarak kaydedildi).\nOrka'da geri yükleyip (🖥 Müşteride Geri Yükle) kontrol edebilirsin.",
