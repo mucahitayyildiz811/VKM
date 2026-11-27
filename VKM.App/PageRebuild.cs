@@ -2005,9 +2005,45 @@ namespace VKM.App
         //    ya da tablo kurtarmada boş kaldı ve adı tanım/kart/plan/şablon tablosu. Fiş/hareket tabloları ASLA doldurulmaz.
         static readonly Regex MasterRx = new(@"^(GRP_|ICE_CARI|ORT_PLAN$|ORT_FISEXCELSABLON$|ORT_KAYITSBL|ORT_MUHTABLO|ORT_MUHTSODE|ORT_OZELLIK|ORT_BELGE|ORT_(GRUP)?KEBIR|ORT_KDVTABLO$|ORT_\w*TANIM$|BIL_(BABSTANIM|KDVHESKOD|YANSITMA|MALIYET\w*|STOKKART)$|STK_(STOKKART|RENKLER|BOYUTLAR|STOKFIYATGRUP|INDIRIM\w*)$|PUB_(PERSONPROFIL|MESAITANIM|VARDIYA\w*|KNT\w*|PERSONEL\w*|ISEGIRISCIKIS|KIMLIKLER|ADRESLER|YAKINLARI|OGRENIMDURUMU|OZLUKDOSYASI|HESPLAN|CALISILANYERLER|\w*GELIRTURLERI|SENDIKA\w*|TESVIKTANIM|CALISMADUZENI\w*|CALISMAPLANLARI|CALISMAHAREKETTIPI|GRUP\w*|ZIMMETKART|MESAIHESAPLARI|PDKSGRUPLAR|EGTPLAN|ICRALAR|GELVERTABUCRET|SGKTABUCRET)$)", RegexOptions.IgnoreCase);
         static readonly Regex TranRx = new(@"(FISBASLIK|FISSATIR|EXCELSATIR|TRAN|HAREKET|BEYAN|EFATURA|EDEFTER|EYEVMIYE|DOSYA|LOG$|_LOG|MESAILER|IZINLER|BORDRO|PUANTAJ|SAYIM|ENVANTER|NOTLAR)", RegexOptions.IgnoreCase);
+        // Kurtarmada katalog sayfası şifreli kalınca bazı KOLONLAR hiç oluşturulamaz (ör. ORT_FISSATIR.hesapkodu).
+        // Sağlam referansta (2024) olup kurtarılanda olmayan kolonları ekler → Orka'nın "Field 'x' not found" hatası biter.
+        // Eklenen kolonlar NULL gelir; değerleri sonraki adımlar doldurur (hesapkodu → RepairPlanRefs plan bağlantısından).
+        static void AddMissingColumnsFromHelper(string R, string H, Action<string> log)
+        {
+            string cs = Conn(R), hcs = Conn(H);
+            string Q(string x) => "[" + x.Replace("]", "]]") + "]";
+            var rCols = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var r in Query(cs, "SELECT t.name, c.name FROM sys.tables t JOIN sys.columns c ON c.object_id=t.object_id WHERE t.is_ms_shipped=0 AND SCHEMA_NAME(t.schema_id)='dbo';", 300))
+            {
+                string tn = Convert.ToString(r[0]) ?? "";
+                if (!rCols.TryGetValue(tn, out var s)) rCols[tn] = s = new(StringComparer.OrdinalIgnoreCase);
+                s.Add(Convert.ToString(r[1]) ?? "");
+            }
+            int added = 0; var tset = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var r in Query(hcs, "SELECT t.name, c.name, TYPE_NAME(c.system_type_id), c.max_length, c.precision, c.scale, c.is_computed FROM sys.tables t JOIN sys.columns c ON c.object_id=t.object_id WHERE t.is_ms_shipped=0 AND SCHEMA_NAME(t.schema_id)='dbo' ORDER BY t.name, c.column_id;", 300))
+            {
+                string tn = Convert.ToString(r[0]) ?? "", cn = Convert.ToString(r[1]) ?? "", ty = (Convert.ToString(r[2]) ?? "").ToLowerInvariant();
+                int ml = Convert.ToInt32(r[3]), pr = Convert.ToInt32(r[4]), sc = Convert.ToInt32(r[5]); bool comp = Convert.ToBoolean(r[6]);
+                if (comp || ty == "timestamp" || ty == "rowversion" || ty.Length == 0) continue;
+                if (!rCols.TryGetValue(tn, out var have) || have.Contains(cn)) continue;
+                string ts = ty switch
+                {
+                    "nvarchar" or "nchar" => ml == -1 ? ty + "(max)" : $"{ty}({ml / 2})",
+                    "varchar" or "char" or "varbinary" or "binary" => ml == -1 ? ty + "(max)" : $"{ty}({ml})",
+                    "decimal" or "numeric" => $"{ty}({pr},{sc})",
+                    "datetime2" or "time" or "datetimeoffset" => $"{ty}({sc})",
+                    _ => ty
+                };
+                try { ExecSql(cs, $"ALTER TABLE dbo.{Q(tn)} ADD {Q(cn)} {ts} NULL;", 120); added++; have.Add(cn); tset.Add(tn); }
+                catch { }
+            }
+            if (added > 0) log($"Referanstan {added} eksik KOLON eklendi ({tset.Count} tabloya; şema tamamlandı → Orka 'Field not found' hataları giderilir).");
+        }
+
         static void FillFromHelper(string R, string H, Action<string> log)
         {
             string cs = Conn(R);
+            try { AddMissingColumnsFromHelper(R, H, log); } catch (Exception ex) { log("Eksik kolon ekleme atlandı: " + First(ex.Message)); }
             string Q(string x) => "[" + x.Replace("]", "]]") + "]";
             string HQ = Q(H);
             bool IsText(int t) => t == 231 || t == 239 || t == 167 || t == 175;
