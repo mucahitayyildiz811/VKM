@@ -1198,6 +1198,7 @@ namespace VKM.App
                 log("✓ Geri yüklendi. Onarım adımları çalışıyor…");
 
                 // 2024/sağlam referans verildiyse: hesap planı + cari + şablon/tanım tamamla (collation artık uyumlu)
+                bool planDone = false;
                 if (!string.IsNullOrEmpty(refPath) && File.Exists(refPath))
                 {
                     string hDb = "VKM_Yrd_" + Environment.ProcessId + "_" + DateTime.Now.ToString("HHmmssfff");
@@ -1210,14 +1211,17 @@ namespace VKM.App
                         {
                             FillFromHelper(db, hDb, log);
                             try { CopyModulesFromHelper(db, hDb, log); } catch (Exception ex) { log("Program nesnesi aktarımı atlandı: " + First(ex.Message)); }
+                            // hesap planı bağlantı onarımı REFERANS AÇIKKEN: eksik hesap adları 2024'ten ("adı kurtarılamadı" yerine gerçek ad)
+                            try { RepairPlanRefs(db, Path.GetDirectoryName(outBak) ?? ".", log, hDb); planDone = true; } catch (Exception ex) { log("Hesap planı bağlantı onarımı atlandı: " + First(ex.Message)); }
                         }
                         else log("⚠ Referans açılamadı: " + herr);
                     }
                     catch (Exception ex) { log("Referanstan tamamlama atlandı: " + First(ex.Message)); }
                     finally { try { ExecSql(cs0, $"IF DB_ID('{hDb}') IS NOT NULL BEGIN ALTER DATABASE [{hDb}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{hDb}]; END", 120); } catch { } }
                 }
-                // fişlerde kullanılıp planda olmayan hesapları aç (361 vb. "kod oluşturulamadı" hatasını önler)
-                try { RepairPlanRefs(db, Path.GetDirectoryName(outBak) ?? ".", log); } catch (Exception ex) { log("Hesap planı bağlantı onarımı atlandı: " + First(ex.Message)); }
+                // referans yoksa/açılamadıysa: fişlerde kullanılıp planda olmayan hesapları referanssız aç (361 vb. "kod oluşturulamadı" hatasını önler)
+                if (!planDone)
+                    try { RepairPlanRefs(db, Path.GetDirectoryName(outBak) ?? ".", log); } catch (Exception ex) { log("Hesap planı bağlantı onarımı atlandı: " + First(ex.Message)); }
 
                 try { RebuildHeadersFromQuickEntry(db, log); } catch (Exception ex) { log("Hızlı fişten başlık üretimi atlandı: " + First(ex.Message)); }
                 try { RebuildHeadersFromOrphanLines(db, log); } catch (Exception ex) { log("Yetim satırlardan başlık bütünleme atlandı: " + First(ex.Message)); }
@@ -2701,13 +2705,27 @@ namespace VKM.App
         // ── Fiş satırlarında kullanılıp hesap planında OLMAYAN hesaplar (planın o sayfası şifreli kalmış, önceki yılda da yok):
         //    adı cari karttan (ICE_CARIKART plankod/planadi/IDplan) alınır, yoksa "adı kurtarılamadı" ile açılır.
         //    Diğer alanlar (kebir, tür, nitelik bayrakları) aynı üst hesabın kardeş hesabından kopyalanır → Orka mizanda/fişte tanır.
-        static void RepairPlanRefs(string R, string dir, Action<string> log)
+        static void RepairPlanRefs(string R, string dir, Action<string> log, string? hDb = null)
         {
             LoadPlanNames(dir);
             string cs = Conn(R);
+            string HQ = string.IsNullOrEmpty(hDb) ? "" : "[" + hDb!.Replace("]", "]]") + "]";
             var has = Query(cs, "SELECT OBJECT_ID('dbo.ORT_PLAN'), OBJECT_ID('dbo.ORT_FISSATIR'), OBJECT_ID('dbo.ICE_CARIKART');", 60)[0];
             if (has[0] == DBNull.Value || has[1] == DBNull.Value) return;
             bool cari = has[2] != DBNull.Value;
+            // EN GÜVENİLİR KAYNAK: 2024 referansındaki aynı kodun adı → planda adı boş/placeholder kalanları doldur
+            if (HQ.Length > 0)
+                try
+                {
+                    int fromRef = Convert.ToInt32(Query(cs, $@"UPDATE p SET p.planadi = LTRIM(RTRIM(h.planadi))
+                        FROM dbo.ORT_PLAN p JOIN {HQ}.dbo.ORT_PLAN h
+                          ON LTRIM(RTRIM(h.plankod)) COLLATE DATABASE_DEFAULT = LTRIM(RTRIM(p.plankod)) COLLATE DATABASE_DEFAULT
+                        WHERE (LTRIM(ISNULL(p.planadi,N''))=N'' OR p.planadi LIKE N'%(adı kurtarıl%)%')
+                          AND LEN(LTRIM(ISNULL(h.planadi,N'')))>1 AND h.planadi NOT LIKE N'%(adı kurtarıl%)%';
+                        SELECT @@ROWCOUNT;", 300)[0][0]);
+                    if (fromRef > 0) log($"Hesap planı: {fromRef} hesabın eksik/placeholder adı 2024 referansından dolduruldu.");
+                }
+                catch (Exception ex) { log("2024 referansından ad doldurma atlandı: " + First(ex.Message)); }
             // planda adı boş kalan hesaplar → cari karttaki ad
             int named = 0;
             if (cari)
@@ -2766,18 +2784,26 @@ namespace VKM.App
             bool ident = cols.Any(k => k.ident);
             string Q(string x) => "[" + x.Replace("]", "]]") + "]";
             string S(string x) => "N'" + x.Replace("'", "''") + "'";
-            int made = 0, fromCari = 0, fromCommon = 0; var noName = new List<string>();
+            int made = 0, fromCari = 0, fromCommon = 0, fromRef2 = 0; var noName = new List<string>();
             foreach (var r in need)
             {
                 string kod = Convert.ToString(r[0])!.Trim();
                 if (kod.Length > 60 || !Regex.IsMatch(kod, @"^[\p{L}\p{N} .\-_/]+$")) { noName.Add(kod + "(bozuk kod, açılmadı)"); continue; }
                 long? pid = r[1] == DBNull.Value ? null : Convert.ToInt64(r[1]);
-                string? ad = null; long? cid = null;
+                string? ad = null; long? cid = null; bool refName = false;
+                // en güvenilir: 2024 referansındaki aynı kodun adı
+                if (HQ.Length > 0)
+                    try
+                    {
+                        var hr = Query(cs, $"SELECT TOP 1 LTRIM(RTRIM(planadi)) FROM {HQ}.dbo.ORT_PLAN WHERE LTRIM(RTRIM(plankod)) COLLATE DATABASE_DEFAULT={S(kod)} COLLATE DATABASE_DEFAULT AND LEN(LTRIM(ISNULL(planadi,N'')))>1 AND planadi NOT LIKE N'%(adı kurtarıl%)%;", 60);
+                        if (hr.Count > 0 && hr[0][0] != DBNull.Value) { ad = Convert.ToString(hr[0][0]); refName = true; }
+                    }
+                    catch { }
                 if (cari)
                     try
                     {
                         var cr = Query(cs, $"SELECT TOP 1 planadi, IDplan FROM dbo.ICE_CARIKART WHERE plankod={S(kod)} ORDER BY ID DESC;", 60);
-                        if (cr.Count > 0) { ad = cr[0][0] == DBNull.Value ? null : Convert.ToString(cr[0][0]); cid = cr[0][1] == DBNull.Value ? null : Convert.ToInt64(cr[0][1]); }
+                        if (cr.Count > 0) { if (string.IsNullOrWhiteSpace(ad) && cr[0][0] != DBNull.Value) ad = Convert.ToString(cr[0][0]); cid = cr[0][1] == DBNull.Value ? null : Convert.ToInt64(cr[0][1]); }
                     }
                     catch { }
                 // kardeş hesap: aynı üst koddan (320 1 00035 → "320 1 …"), yoksa aynı kebirden
@@ -2816,14 +2842,14 @@ namespace VKM.App
                 try
                 {
                     ExecSql(cs, sql, 120); made++;
-                    if (ad != null) { if (common) fromCommon++; else fromCari++; } else noName.Add(kod);
+                    if (ad != null) { if (refName) fromRef2++; else if (common) fromCommon++; else fromCari++; } else noName.Add(kod);
                     // bu kodu kullanan fiş satırlarının hesap ID'si plana bağlansın
                     try { ExecSql(cs, $"DISABLE TRIGGER ALL ON dbo.ORT_FISSATIR; UPDATE dbo.ORT_FISSATIR SET IDHesapkodu={id} WHERE hesapkodu={S(kod)} AND (IDHesapkodu IS NULL OR NOT EXISTS (SELECT 1 FROM dbo.ORT_PLAN p WHERE p.ID=ORT_FISSATIR.IDHesapkodu)); ENABLE TRIGGER ALL ON dbo.ORT_FISSATIR;", 120); }
                     catch { try { ExecSql(cs, "ENABLE TRIGGER ALL ON dbo.ORT_FISSATIR;", 60); } catch { } }
                 }
                 catch { try { ExecSql(cs, "ENABLE TRIGGER ALL ON dbo.ORT_PLAN;" + (ident ? " SET IDENTITY_INSERT dbo.ORT_PLAN OFF;" : ""), 60); } catch { } }
             }
-            log($"Hesap planı: fişlerde kullanılıp planda olmayan {need.Count} hesap → {made} açıldı ({fromCari} adı cari karttan" + (fromCommon > 0 ? $", {fromCommon} adı diğer firmaların ortak planından" : "") +
+            log($"Hesap planı: fişlerde kullanılıp planda olmayan {need.Count} hesap → {made} açıldı ({fromRef2} adı 2024 referansından, {fromCari} adı cari karttan" + (fromCommon > 0 ? $", {fromCommon} adı diğer firmaların ortak planından" : "") +
                 (noName.Count > 0 ? $", {noName.Count} adı kurtarılamadı: " + string.Join(", ", noName.Take(8)) + (noName.Count > 8 ? " …" : "") : "") + ")" +
                 (named > 0 ? $" · {named} hesabın boş adı cari karttan dolduruldu" : "") + ".");
         }
