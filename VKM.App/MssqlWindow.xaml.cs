@@ -492,6 +492,37 @@ namespace VKM.App
             finally { SetBusy(false); FixBakBtn.IsEnabled = true; }
         }
 
+        private async void Excel_Click(object sender, RoutedEventArgs e)
+        {
+            var d = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Excel'e aktarılacak .bak (bir ya da çok)",
+                Filter = "SQL yedek (*.bak)|*.bak", Multiselect = true
+            };
+            if (_outDir != null && Directory.Exists(_outDir)) d.InitialDirectory = _outDir;
+            if (d.ShowDialog() != true || d.FileNames.Length == 0) return;
+            var baks = d.FileNames.ToList();
+            SetBusy(true); ExcelBtn.IsEnabled = false;
+            LogText.Text = "";
+            Log("══════ EXCEL'E AKTAR (Yevmiye + Mizan + Hesap Planı) ══════");
+            try
+            {
+                int ok = 0; string? lastXlsx = null;
+                foreach (var inBak in baks)
+                {
+                    string outXlsx = Path.Combine(Path.GetDirectoryName(inBak) ?? ".", Path.GetFileNameWithoutExtension(inBak) + ".xlsx");
+                    Log("── " + Path.GetFileName(inBak) + " → " + Path.GetFileName(outXlsx) + " ──");
+                    bool r = await Task.Run(() => PageRebuild.ExportToExcel(inBak, outXlsx, Log, out _));
+                    if (r) { ok++; lastXlsx = outXlsx; }
+                }
+                MessageBox.Show($"{ok}/{baks.Count} .bak Excel'e aktarıldı (.xlsx, yanına kaydedildi).\n\nHer dosyada 3 sayfa var: Yevmiye Defteri · Mizan · Hesap Planı.\nMüşaviye doğrudan teslim edebilirsin.",
+                                "Excel'e Aktar", MessageBoxButton.OK, ok == baks.Count ? MessageBoxImage.Information : MessageBoxImage.Warning);
+                if (lastXlsx != null && ok == 1) { try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(lastXlsx) { UseShellExecute = true }); } catch { } }
+            }
+            catch (Exception ex) { Log("✗ " + ex.Message); }
+            finally { SetBusy(false); ExcelBtn.IsEnabled = true; }
+        }
+
         // küçük giriş penceresi: SQL kullanıcı adı + şifre
         private (string user, string pass)? AskSqlLogin()
         {

@@ -20,6 +20,8 @@
     <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.2" />
     <PackageReference Include="LTRData.DiscUtils" Version="1.0.90" />
     <PackageReference Include="Docnet.Core" Version="2.6.0" />
+    <!-- Recovered veriyi Excel'e (.xlsx) aktarmak için -->
+    <PackageReference Include="ClosedXML" Version="0.104.2" />
     <!-- Gömülü VLC motorlu CCTV oynatıcı (her codec, sistem codec'i gerekmez) -->
     <PackageReference Include="LibVLCSharp" Version="3.8.2" />
     <PackageReference Include="LibVLCSharp.WPF" Version="3.8.2" />

@@ -88,6 +88,9 @@
             <Button x:Name="FixBakBtn" Content="🔧 Mevcut .bak'ı Onar" Click="FixBak_Click" Height="26" Padding="10,0" Margin="6,0,0,0"
                     Background="{DynamicResource BrLine}" Foreground="{DynamicResource BrText2}" BorderBrush="{DynamicResource BrLine}" BorderThickness="1" Cursor="Hand" FontSize="11.5"
                     ToolTip="Zaten kurtarılmış/teslim edilmiş bir .bak'ı baştan taramadan düzeltir: Fiş Bütünleme + Fiş tipi + başlık tutarı → yeni _onarildi.bak"/>
+            <Button x:Name="ExcelBtn" Content="📊 Excel'e Aktar" Click="Excel_Click" Height="26" Padding="10,0" Margin="6,0,0,0"
+                    Background="{DynamicResource BrLine}" Foreground="{DynamicResource BrText2}" BorderBrush="{DynamicResource BrLine}" BorderThickness="1" Cursor="Hand" FontSize="11.5"
+                    ToolTip="Bir ya da birçok .bak'ı Excel'e aktarır: Yevmiye Defteri + Mizan + Hesap Planı (3 sayfalı .xlsx). Orka açmasa da müşaviye teslim için."/>
             <TextBlock Text="Hedef SQL:" VerticalAlignment="Center" Margin="16,0,6,0" Foreground="{DynamicResource BrDim}" FontSize="11.5"/>
             <ComboBox x:Name="TargetBox" Width="150" Height="24" FontSize="11.5" SelectedIndex="0" SelectionChanged="Target_Changed"
                       ToolTip="Müşterinin SQL sürümü. .bak bu sürümde (ve üstünde) açılır. Daha eski formatta üretilmiş .bak yeni sürümde de açılır.">

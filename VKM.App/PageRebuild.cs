@@ -1161,7 +1161,7 @@ namespace VKM.App
         // ── MEVCUT .bak'ı ONAR: zaten kurtarılmış (müşteriye verilmiş) bir .bak'ı BAŞTAN TARAMADAN düzeltir.
         //    Geri yükle → Fiş Bütünleme + Fiş tipi + başlık tutarı + hızlı-fiş bütünleme → yeniden .bak.
         //    Kaynak .bak'a dokunmaz; yeni outBak üretir. (105 GB şifreli MDF'i tekrar taramaya gerek yok.)
-        public const string BuildTag = "2026-11-28-P";   // her değişiklikte güncellenir → logda hangi kodu çalıştırdığın belli olur
+        public const string BuildTag = "2026-11-28-Q";   // her değişiklikte güncellenir → logda hangi kodu çalıştırdığın belli olur
 
         // Referans klasöründe paylaşımlı ORKAGENELTANIM veritabanı dosyasını bulur (.mdf/.bak). Firma program nesneleri buna bağlı.
         static string? FindOrkaGenel(params string?[] hints)
@@ -1295,6 +1295,89 @@ namespace VKM.App
                 if (created) { try { ExecSql(cs0, $"IF DB_ID('{db}') IS NOT NULL BEGIN ALTER DATABASE [{db}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{db}]; END", 120); } catch { } }
                 try { if (Directory.Exists(work)) Directory.Delete(work, true); } catch { }
             }
+        }
+
+        // ── Kurtarılmış .bak'ı Excel'e aktar: Yevmiye Defteri + Mizan + Hesap Planı (3 sayfalı .xlsx). Orka UI açmasa da müşaviye teslim edilebilir.
+        public static bool ExportToExcel(string inBak, string outXlsx, Action<string> log, out string err)
+        {
+            err = "";
+            if (!File.Exists(inBak)) { err = ".bak bulunamadı: " + inBak; return false; }
+            if (!MssqlBak.BakCompatible(inBak))
+            {
+                log("Yedek bu SQL sürümünden yeni — daha yeni LocalDB deneniyor…");
+                if (!MssqlBak.TryNewerLocalDb(log)) { err = "Bu .bak'ı açacak LocalDB sürümü yok."; return false; }
+            }
+            string db = "VKM_Xls_" + Environment.ProcessId + "_" + DateTime.Now.ToString("HHmmss");
+            string work = Path.Combine(Path.GetDirectoryName(outXlsx) ?? Path.GetTempPath(), "vkm_xls_" + DateTime.Now.ToString("yyyyMMdd_HHmmss"));
+            string cs0 = Conn("master");
+            bool created = false;
+            try
+            {
+                Directory.CreateDirectory(work); GrantAll(work);
+                log("1) Yedek geri yükleniyor (çalışma kopyası)…");
+                var files = Query(cs0, $"RESTORE FILELISTONLY FROM DISK = N'{Esc(inBak)}';", 600);
+                var moves = new List<string>(); int i = 0;
+                foreach (var f in files)
+                {
+                    string logical = Convert.ToString(f[0]) ?? "", type = (Convert.ToString(f[2]) ?? "D").Trim();
+                    string target = type switch { "L" => Path.Combine(work, $"{db}_log{i}.ldf"), "D" => Path.Combine(work, $"{db}_dat{i}" + (i == 0 ? ".mdf" : ".ndf")), _ => Path.Combine(work, $"{db}_x{i}") };
+                    moves.Add($"MOVE N'{Esc(logical)}' TO N'{Esc(target)}'"); i++;
+                }
+                try { ExecSql(cs0, $"IF DB_ID('{db}') IS NOT NULL BEGIN ALTER DATABASE [{db}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{db}]; END", 120); } catch { }
+                ExecSql(cs0, $"RESTORE DATABASE [{db}] FROM DISK = N'{Esc(inBak)}' WITH {string.Join(", ", moves)}, REPLACE, RECOVERY;", 14400);
+                created = true;
+                string cs = Conn(db);
+                log("2) Yevmiye / Mizan / Hesap Planı çekiliyor…");
+
+                string yevmiyeSql = @"SELECT b.fisno, b.fistarihi, b.fisaciklama, s.kayitsirano, s.hesapkodu, p.planadi, s.fisaciklamasi, s.tlborctutar, s.tlalactutar
+                    FROM dbo.ORT_FISBASLIK b JOIN dbo.ORT_FISSATIR s ON s.IDFisbaslik=b.ID
+                    LEFT JOIN dbo.ORT_PLAN p ON p.plankod=s.hesapkodu
+                    ORDER BY b.fistarihi, b.fisno, s.kayitsirano;";
+                string mizanSql = @"SELECT s.hesapkodu, MAX(p.planadi), SUM(s.tlborctutar), SUM(s.tlalactutar), SUM(s.tlborctutar)-SUM(s.tlalactutar)
+                    FROM dbo.ORT_FISSATIR s LEFT JOIN dbo.ORT_PLAN p ON p.plankod=s.hesapkodu
+                    GROUP BY s.hesapkodu ORDER BY s.hesapkodu;";
+                string planSql = @"SELECT plankod, planadi FROM dbo.ORT_PLAN ORDER BY plankod;";
+
+                var yev = Query(cs, yevmiyeSql, 1800);
+                var miz = Query(cs, mizanSql, 900);
+                var pln = Query(cs, planSql, 300);
+
+                using var wb = new ClosedXML.Excel.XLWorkbook();
+                WriteSheet(wb, "Yevmiye Defteri", new[] { "Fiş No", "Tarih", "Fiş Açıklama", "Sıra", "Hesap Kodu", "Hesap Adı", "Satır Açıklama", "Borç", "Alacak" }, yev);
+                WriteSheet(wb, "Mizan", new[] { "Hesap Kodu", "Hesap Adı", "Borç Toplam", "Alacak Toplam", "Bakiye" }, miz);
+                WriteSheet(wb, "Hesap Planı", new[] { "Hesap Kodu", "Hesap Adı" }, pln);
+                wb.SaveAs(outXlsx);
+                log($"✓✓ Excel yazıldı: {outXlsx}  (Yevmiye {yev.Count:N0} satır · Mizan {miz.Count:N0} hesap · Plan {pln.Count:N0} hesap)");
+                return true;
+            }
+            catch (Exception ex) { err = First(ex.Message); log("✗ Excel aktarım hatası: " + err); return false; }
+            finally
+            {
+                if (created) { try { ExecSql(cs0, $"IF DB_ID('{db}') IS NOT NULL BEGIN ALTER DATABASE [{db}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{db}]; END", 120); } catch { } }
+                try { if (Directory.Exists(work)) Directory.Delete(work, true); } catch { }
+            }
+        }
+
+        static void WriteSheet(ClosedXML.Excel.XLWorkbook wb, string name, string[] headers, List<object[]> rows)
+        {
+            var ws = wb.Worksheets.Add(name.Length > 31 ? name.Substring(0, 31) : name);
+            for (int c = 0; c < headers.Length; c++) { var h = ws.Cell(1, c + 1); h.Value = headers[c]; h.Style.Font.Bold = true; }
+            for (int r = 0; r < rows.Count; r++)
+            {
+                var row = rows[r];
+                for (int c = 0; c < headers.Length && c < row.Length; c++)
+                {
+                    object v = row[c];
+                    if (v == null || v == DBNull.Value) continue;
+                    var cell = ws.Cell(r + 2, c + 1);
+                    if (v is decimal || v is double || v is float || v is int || v is long || v is short || v is byte)
+                        cell.Value = Convert.ToDouble(v);
+                    else if (v is DateTime dt) { cell.Value = dt; cell.Style.DateFormat.Format = "dd.MM.yyyy"; }
+                    else if (v is bool bo) cell.Value = bo;
+                    else cell.Value = Convert.ToString(v) ?? "";
+                }
+            }
+            try { ws.SheetView.FreezeRows(1); ws.Columns().AdjustToContents(); } catch { }
         }
 
         public static bool HeaderLooksOk(string src)
