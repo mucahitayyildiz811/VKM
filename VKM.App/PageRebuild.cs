@@ -1161,9 +1161,11 @@ namespace VKM.App
         // ── MEVCUT .bak'ı ONAR: zaten kurtarılmış (müşteriye verilmiş) bir .bak'ı BAŞTAN TARAMADAN düzeltir.
         //    Geri yükle → Fiş Bütünleme + Fiş tipi + başlık tutarı + hızlı-fiş bütünleme → yeniden .bak.
         //    Kaynak .bak'a dokunmaz; yeni outBak üretir. (105 GB şifreli MDF'i tekrar taramaya gerek yok.)
+        public const string BuildTag = "2026-11-27-K";   // her değişiklikte güncellenir → logda hangi kodu çalıştırdığın belli olur
         public static bool FixBak(string inBak, string outBak, string? refPath, Action<string> log, out string err)
         {
             err = "";
+            log($"VKM Onarım • yapı {BuildTag} • referanssız bozuk-kolon onarımı AKTİF");
             if (!File.Exists(inBak)) { err = ".bak bulunamadı: " + inBak; return false; }
             if (!MssqlBak.BakCompatible(inBak))
             {
