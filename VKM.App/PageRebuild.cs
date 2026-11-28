@@ -1338,37 +1338,52 @@ namespace VKM.App
                     WHEN pat.cashB>pat.cashA THEN N'Tahsil'
                     WHEN pat.cashA>pat.cashB THEN N'Tediye'
                     ELSE N'Mahsup' END";
-                string yevmiyeSql = $@"SELECT b.fisno, b.fistarihi, {fistipiExpr} AS fistipi, b.fisaciklama, s.kayitsirano, s.hesapkodu, p.planadi, s.fisaciklamasi, s.tlborctutar, s.tlalactutar
+                // ÖNEMLİ: ORT_PLAN'da aynı plankod birden fazla olabilir (kurtarmada tekrar). Düz JOIN satırları ÇOĞALTIR → tutarlar şişer.
+                // Çözüm: plan adını TOP 1 alt sorguyla al (çoğaltmaz). Yevmiye fiş fiş sıralı (b.ID), mizan önce toplanır sonra ad eklenir.
+                string yevmiyeSql = $@"SELECT b.ID AS fid, b.fisno, b.fistarihi, {fistipiExpr} AS fistipi, b.fisaciklama,
+                        s.hesapkodu, (SELECT TOP 1 pp.planadi FROM dbo.ORT_PLAN pp WHERE pp.plankod=s.hesapkodu ORDER BY pp.ID) AS planadi,
+                        s.fisaciklamasi, ISNULL(s.tlborctutar,0) AS borc, ISNULL(s.tlalactutar,0) AS alacak
                     FROM dbo.ORT_FISBASLIK b JOIN dbo.ORT_FISSATIR s ON s.IDFisbaslik=b.ID
-                    LEFT JOIN dbo.ORT_PLAN p ON p.plankod=s.hesapkodu
                     LEFT JOIN ({PatSub(keb)}) pat ON pat.fid=b.ID
-                    ORDER BY b.fistarihi, b.fisno, s.kayitsirano;";
-                string mizanSql = @"SELECT s.hesapkodu, MAX(p.planadi), SUM(s.tlborctutar), SUM(s.tlalactutar), SUM(s.tlborctutar)-SUM(s.tlalactutar)
-                    FROM dbo.ORT_FISSATIR s LEFT JOIN dbo.ORT_PLAN p ON p.plankod=s.hesapkodu
-                    GROUP BY s.hesapkodu ORDER BY s.hesapkodu;";
-                string planSql = @"SELECT plankod, planadi FROM dbo.ORT_PLAN ORDER BY plankod;";
+                    ORDER BY b.fistarihi, b.ID, s.kayitsirano;";
+                string mizanSql = @"SELECT g.hesapkodu,
+                        (SELECT TOP 1 pp.planadi FROM dbo.ORT_PLAN pp WHERE pp.plankod=g.hesapkodu ORDER BY pp.ID) AS planadi,
+                        g.borc, g.alacak, g.borc-g.alacak AS bakiye
+                    FROM (SELECT s.hesapkodu, SUM(ISNULL(s.tlborctutar,0)) borc, SUM(ISNULL(s.tlalactutar,0)) alacak
+                          FROM dbo.ORT_FISSATIR s WHERE LTRIM(ISNULL(s.hesapkodu,N''))<>N'' GROUP BY s.hesapkodu) g
+                    ORDER BY g.hesapkodu;";
+                string planSql = @"SELECT plankod, MAX(planadi) FROM dbo.ORT_PLAN WHERE LTRIM(ISNULL(plankod,N''))<>N'' GROUP BY plankod ORDER BY plankod;";
 
-                var yev = Query(cs, yevmiyeSql, 1800);
+                var yevRaw = Query(cs, yevmiyeSql, 1800);
                 var miz = Query(cs, mizanSql, 900);
                 var pln = Query(cs, planSql, 300);
 
-                var hYev = new[] { "Fiş No", "Tarih", "Fiş Tipi", "Fiş Açıklama", "Sıra", "Hesap Kodu", "Hesap Adı", "Satır Açıklama", "Borç", "Alacak" };
+                // Her fişe sıralı Madde No ver (fiş değişince artar), fid'i at
+                var yev = new List<object[]>(yevRaw.Count);
+                int madde = 0, fisSayisi = 0; object curFid = null;
+                foreach (var row in yevRaw)
+                {
+                    if (curFid == null || !Equals(row[0], curFid)) { curFid = row[0]; madde++; fisSayisi++; }
+                    yev.Add(new object[] { madde, row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9] });
+                }
+
+                var hYev = new[] { "Madde No", "Fiş No", "Tarih", "Fiş Tipi", "Fiş Açıklama", "Hesap Kodu", "Hesap Adı", "Satır Açıklama", "Borç", "Alacak" };
                 var hMiz = new[] { "Hesap Kodu", "Hesap Adı", "Borç Toplam", "Alacak Toplam", "Bakiye" };
                 var hPln = new[] { "Hesap Kodu", "Hesap Adı" };
                 using (var wb = new ClosedXML.Excel.XLWorkbook())
                 {
-                    WriteSheet(wb, "Yevmiye Defteri", hYev, yev);
+                    WriteYevmiyeSheet(wb, hYev, yev);
                     WriteSheet(wb, "Mizan", hMiz, miz);
                     WriteSheet(wb, "Hesap Planı", hPln, pln);
                     wb.SaveAs(outXlsx);
                 }
-                // CSV de üret (müşavir/başka muhasebe programları için): UTF-8 BOM + noktalı virgül ayraç (Türkçe Excel uyumlu)
+                // CSV de üret (UTF-8 BOM + noktalı virgül; Türkçe Excel uyumlu)
                 string xdir = Path.GetDirectoryName(outXlsx) ?? ".";
                 string bn = Path.GetFileNameWithoutExtension(outXlsx);
                 WriteCsv(Path.Combine(xdir, bn + "_Yevmiye.csv"), hYev, yev);
                 WriteCsv(Path.Combine(xdir, bn + "_Mizan.csv"), hMiz, miz);
                 WriteCsv(Path.Combine(xdir, bn + "_HesapPlani.csv"), hPln, pln);
-                log($"✓✓ Excel + CSV yazıldı: {Path.GetFileName(outXlsx)} (+3 CSV)  ·  Yevmiye {yev.Count:N0} satır · Mizan {miz.Count:N0} hesap · Plan {pln.Count:N0} hesap");
+                log($"✓✓ Excel + CSV yazıldı: {Path.GetFileName(outXlsx)} (+3 CSV)  ·  {fisSayisi:N0} fiş · {yev.Count:N0} satır · Mizan {miz.Count:N0} hesap · Plan {pln.Count:N0} hesap");
                 return true;
             }
             catch (Exception ex) { err = First(ex.Message); log("✗ Excel aktarım hatası: " + err); return false; }
@@ -1379,25 +1394,57 @@ namespace VKM.App
             }
         }
 
+        static void SetCell(ClosedXML.Excel.IXLCell cell, object v)
+        {
+            if (v == null || v == DBNull.Value) return;
+            if (v is decimal || v is double || v is float || v is int || v is long || v is short || v is byte) cell.Value = Convert.ToDouble(v);
+            else if (v is DateTime dt) { cell.Value = dt; cell.Style.DateFormat.Format = "dd.MM.yyyy"; }
+            else if (v is bool bo) cell.Value = bo;
+            else cell.Value = Convert.ToString(v) ?? "";
+        }
+        static double ToD(object v) { try { return (v == null || v == DBNull.Value) ? 0 : Convert.ToDouble(v); } catch { return 0; } }
+        static bool IsMoneyHeader(string h) => h != null && (h.Contains("Borç") || h.Contains("Alacak") || h.Contains("Bakiye") || h.Contains("Toplam"));
+
         static void WriteSheet(ClosedXML.Excel.XLWorkbook wb, string name, string[] headers, List<object[]> rows)
         {
             var ws = wb.Worksheets.Add(name.Length > 31 ? name.Substring(0, 31) : name);
             for (int c = 0; c < headers.Length; c++) { var h = ws.Cell(1, c + 1); h.Value = headers[c]; h.Style.Font.Bold = true; }
             for (int r = 0; r < rows.Count; r++)
+                for (int c = 0; c < headers.Length && c < rows[r].Length; c++)
+                    SetCell(ws.Cell(r + 2, c + 1), rows[r][c]);
+            for (int c = 0; c < headers.Length; c++)
+                if (IsMoneyHeader(headers[c])) ws.Column(c + 1).Style.NumberFormat.Format = "#,##0.00";
+            try { ws.SheetView.FreezeRows(1); ws.Columns().AdjustToContents(); } catch { }
+        }
+
+        // Yevmiyeyi FİŞ FİŞ yazar: her fişin satırları + altında 'Fiş Toplamı' (borç/alacak) + boş ayırıcı satır. Dengesizse alacak kırmızı.
+        static void WriteYevmiyeSheet(ClosedXML.Excel.XLWorkbook wb, string[] headers, List<object[]> disp)
+        {
+            var ws = wb.Worksheets.Add("Yevmiye Defteri");
+            for (int c = 0; c < headers.Length; c++) { var h = ws.Cell(1, c + 1); h.Value = headers[c]; h.Style.Font.Bold = true; }
+            int r = 2; object cur = null; double fB = 0, fA = 0;
+            void Subtotal()
             {
-                var row = rows[r];
-                for (int c = 0; c < headers.Length && c < row.Length; c++)
-                {
-                    object v = row[c];
-                    if (v == null || v == DBNull.Value) continue;
-                    var cell = ws.Cell(r + 2, c + 1);
-                    if (v is decimal || v is double || v is float || v is int || v is long || v is short || v is byte)
-                        cell.Value = Convert.ToDouble(v);
-                    else if (v is DateTime dt) { cell.Value = dt; cell.Style.DateFormat.Format = "dd.MM.yyyy"; }
-                    else if (v is bool bo) cell.Value = bo;
-                    else cell.Value = Convert.ToString(v) ?? "";
-                }
+                if (cur == null) return;
+                ws.Cell(r, 8).Value = "Fiş Toplamı →";
+                ws.Cell(r, 9).Value = fB; ws.Cell(r, 10).Value = fA;
+                var rng = ws.Range(r, 1, r, 10); rng.Style.Font.Bold = true;
+                rng.Style.Fill.BackgroundColor = ClosedXML.Excel.XLColor.FromArgb(235, 235, 235);
+                if (Math.Abs(fB - fA) > 0.005) { ws.Cell(r, 9).Style.Font.FontColor = ClosedXML.Excel.XLColor.Red; ws.Cell(r, 10).Style.Font.FontColor = ClosedXML.Excel.XLColor.Red; }
+                r += 2; // toplam satırı + boş ayırıcı
             }
+            foreach (var row in disp)
+            {
+                if (cur == null || !Equals(row[0], cur)) { Subtotal(); cur = row[0]; fB = 0; fA = 0; }
+                for (int c = 0; c < 8 && c < row.Length; c++) SetCell(ws.Cell(r, c + 1), row[c]);
+                double b = ToD(row.Length > 8 ? row[8] : null), a = ToD(row.Length > 9 ? row[9] : null);
+                ws.Cell(r, 9).Value = b; ws.Cell(r, 10).Value = a; fB += b; fA += a;
+                r++;
+            }
+            Subtotal();
+            ws.Column(3).Style.DateFormat.Format = "dd.MM.yyyy";
+            ws.Column(9).Style.NumberFormat.Format = "#,##0.00";
+            ws.Column(10).Style.NumberFormat.Format = "#,##0.00";
             try { ws.SheetView.FreezeRows(1); ws.Columns().AdjustToContents(); } catch { }
         }
 
