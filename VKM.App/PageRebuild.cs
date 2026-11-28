@@ -1342,12 +1342,23 @@ namespace VKM.App
                 var miz = Query(cs, mizanSql, 900);
                 var pln = Query(cs, planSql, 300);
 
-                using var wb = new ClosedXML.Excel.XLWorkbook();
-                WriteSheet(wb, "Yevmiye Defteri", new[] { "Fiş No", "Tarih", "Fiş Açıklama", "Sıra", "Hesap Kodu", "Hesap Adı", "Satır Açıklama", "Borç", "Alacak" }, yev);
-                WriteSheet(wb, "Mizan", new[] { "Hesap Kodu", "Hesap Adı", "Borç Toplam", "Alacak Toplam", "Bakiye" }, miz);
-                WriteSheet(wb, "Hesap Planı", new[] { "Hesap Kodu", "Hesap Adı" }, pln);
-                wb.SaveAs(outXlsx);
-                log($"✓✓ Excel yazıldı: {outXlsx}  (Yevmiye {yev.Count:N0} satır · Mizan {miz.Count:N0} hesap · Plan {pln.Count:N0} hesap)");
+                var hYev = new[] { "Fiş No", "Tarih", "Fiş Açıklama", "Sıra", "Hesap Kodu", "Hesap Adı", "Satır Açıklama", "Borç", "Alacak" };
+                var hMiz = new[] { "Hesap Kodu", "Hesap Adı", "Borç Toplam", "Alacak Toplam", "Bakiye" };
+                var hPln = new[] { "Hesap Kodu", "Hesap Adı" };
+                using (var wb = new ClosedXML.Excel.XLWorkbook())
+                {
+                    WriteSheet(wb, "Yevmiye Defteri", hYev, yev);
+                    WriteSheet(wb, "Mizan", hMiz, miz);
+                    WriteSheet(wb, "Hesap Planı", hPln, pln);
+                    wb.SaveAs(outXlsx);
+                }
+                // CSV de üret (müşavir/başka muhasebe programları için): UTF-8 BOM + noktalı virgül ayraç (Türkçe Excel uyumlu)
+                string xdir = Path.GetDirectoryName(outXlsx) ?? ".";
+                string bn = Path.GetFileNameWithoutExtension(outXlsx);
+                WriteCsv(Path.Combine(xdir, bn + "_Yevmiye.csv"), hYev, yev);
+                WriteCsv(Path.Combine(xdir, bn + "_Mizan.csv"), hMiz, miz);
+                WriteCsv(Path.Combine(xdir, bn + "_HesapPlani.csv"), hPln, pln);
+                log($"✓✓ Excel + CSV yazıldı: {Path.GetFileName(outXlsx)} (+3 CSV)  ·  Yevmiye {yev.Count:N0} satır · Mizan {miz.Count:N0} hesap · Plan {pln.Count:N0} hesap");
                 return true;
             }
             catch (Exception ex) { err = First(ex.Message); log("✗ Excel aktarım hatası: " + err); return false; }
@@ -1378,6 +1389,35 @@ namespace VKM.App
                 }
             }
             try { ws.SheetView.FreezeRows(1); ws.Columns().AdjustToContents(); } catch { }
+        }
+
+        static void WriteCsv(string path, string[] headers, List<object[]> rows)
+        {
+            var tr = new System.Globalization.CultureInfo("tr-TR");
+            var sb = new System.Text.StringBuilder();
+            string Cell(string s)
+            {
+                if (s == null) return "";
+                bool need = s.IndexOf(';') >= 0 || s.IndexOf('"') >= 0 || s.IndexOf('\n') >= 0 || s.IndexOf('\r') >= 0;
+                if (need) return "\"" + s.Replace("\"", "\"\"") + "\"";
+                return s;
+            }
+            sb.Append(string.Join(";", headers.Select(Cell))).Append("\r\n");
+            foreach (var row in rows)
+            {
+                var cells = new List<string>(headers.Length);
+                for (int c = 0; c < headers.Length; c++)
+                {
+                    object v = c < row.Length ? row[c] : null;
+                    if (v == null || v == DBNull.Value) { cells.Add(""); continue; }
+                    if (v is decimal || v is double || v is float) cells.Add(Convert.ToDecimal(v).ToString("#,##0.00", tr));
+                    else if (v is int || v is long || v is short || v is byte) cells.Add(Convert.ToInt64(v).ToString(tr));
+                    else if (v is DateTime dt) cells.Add(dt.ToString("dd.MM.yyyy"));
+                    else cells.Add(Cell(Convert.ToString(v) ?? ""));
+                }
+                sb.Append(string.Join(";", cells)).Append("\r\n");
+            }
+            File.WriteAllText(path, sb.ToString(), new System.Text.UTF8Encoding(true));
         }
 
         public static bool HeaderLooksOk(string src)

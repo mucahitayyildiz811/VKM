@@ -515,8 +515,8 @@ namespace VKM.App
                     bool r = await Task.Run(() => PageRebuild.ExportToExcel(inBak, outXlsx, Log, out _));
                     if (r) { ok++; lastXlsx = outXlsx; }
                 }
-                MessageBox.Show($"{ok}/{baks.Count} .bak Excel'e aktarıldı (.xlsx, yanına kaydedildi).\n\nHer dosyada 3 sayfa var: Yevmiye Defteri · Mizan · Hesap Planı.\nMüşaviye doğrudan teslim edebilirsin.",
-                                "Excel'e Aktar", MessageBoxButton.OK, ok == baks.Count ? MessageBoxImage.Information : MessageBoxImage.Warning);
+                MessageBox.Show($"{ok}/{baks.Count} .bak aktarıldı (yanlarına kaydedildi).\n\nHer firma için:\n• .xlsx — 3 sayfa: Yevmiye Defteri · Mizan · Hesap Planı\n• 3 adet .csv — _Yevmiye / _Mizan / _HesapPlani (UTF-8, noktalı virgül)\n\nMüşaviye hem Excel hem CSV teslim edebilirsin.",
+                                "Excel + CSV'ye Aktar", MessageBoxButton.OK, ok == baks.Count ? MessageBoxImage.Information : MessageBoxImage.Warning);
                 if (lastXlsx != null && ok == 1) { try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(lastXlsx) { UseShellExecute = true }); } catch { } }
             }
             catch (Exception ex) { Log("✗ " + ex.Message); }
