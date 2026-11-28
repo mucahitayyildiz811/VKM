@@ -1329,9 +1329,19 @@ namespace VKM.App
                 string cs = Conn(db);
                 log("2) Yevmiye / Mizan / Hesap Planı çekiliyor…");
 
-                string yevmiyeSql = @"SELECT b.fisno, b.fistarihi, b.fisaciklama, s.kayitsirano, s.hesapkodu, p.planadi, s.fisaciklamasi, s.tlborctutar, s.tlalactutar
+                string keb = KebirExpr(cs);
+                string fistipiExpr = $@"CASE
+                    WHEN b.fisaciklama LIKE N'%Kapanış%' OR b.fisaciklama LIKE N'%KAPANIŞ%' THEN N'Kapanış'
+                    WHEN b.fisaciklama LIKE N'%Açılış%' OR b.fisaciklama LIKE N'%AÇILIŞ%' OR b.fisaciklama LIKE N'%Devir%' THEN N'Açılış'
+                    WHEN pat.cashB+pat.cashA=0 THEN N'Mahsup'
+                    WHEN pat.ncash=pat.nline THEN N'Virman'
+                    WHEN pat.cashB>pat.cashA THEN N'Tahsil'
+                    WHEN pat.cashA>pat.cashB THEN N'Tediye'
+                    ELSE N'Mahsup' END";
+                string yevmiyeSql = $@"SELECT b.fisno, b.fistarihi, {fistipiExpr} AS fistipi, b.fisaciklama, s.kayitsirano, s.hesapkodu, p.planadi, s.fisaciklamasi, s.tlborctutar, s.tlalactutar
                     FROM dbo.ORT_FISBASLIK b JOIN dbo.ORT_FISSATIR s ON s.IDFisbaslik=b.ID
                     LEFT JOIN dbo.ORT_PLAN p ON p.plankod=s.hesapkodu
+                    LEFT JOIN ({PatSub(keb)}) pat ON pat.fid=b.ID
                     ORDER BY b.fistarihi, b.fisno, s.kayitsirano;";
                 string mizanSql = @"SELECT s.hesapkodu, MAX(p.planadi), SUM(s.tlborctutar), SUM(s.tlalactutar), SUM(s.tlborctutar)-SUM(s.tlalactutar)
                     FROM dbo.ORT_FISSATIR s LEFT JOIN dbo.ORT_PLAN p ON p.plankod=s.hesapkodu
@@ -1342,7 +1352,7 @@ namespace VKM.App
                 var miz = Query(cs, mizanSql, 900);
                 var pln = Query(cs, planSql, 300);
 
-                var hYev = new[] { "Fiş No", "Tarih", "Fiş Açıklama", "Sıra", "Hesap Kodu", "Hesap Adı", "Satır Açıklama", "Borç", "Alacak" };
+                var hYev = new[] { "Fiş No", "Tarih", "Fiş Tipi", "Fiş Açıklama", "Sıra", "Hesap Kodu", "Hesap Adı", "Satır Açıklama", "Borç", "Alacak" };
                 var hMiz = new[] { "Hesap Kodu", "Hesap Adı", "Borç Toplam", "Alacak Toplam", "Bakiye" };
                 var hPln = new[] { "Hesap Kodu", "Hesap Adı" };
                 using (var wb = new ClosedXML.Excel.XLWorkbook())
