@@ -18,11 +18,18 @@ jobs:
         run: dotnet publish VKM.App/VKM.App.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o publish --nologo
       - name: Paketle (tam kurulum zip)
         run: Compress-Archive -Path publish/* -DestinationPath VKM-hazir.zip -Force
+      - name: Guncelleme paketi (uygulama + kutuphane DLL'leri, .NET runtime haric)
+        shell: pwsh
+        run: |
+          dotnet publish VKM.App/VKM.App.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=false -o publish-fd --nologo
+          New-Item -ItemType Directory -Force -Path guncel | Out-Null
+          Copy-Item publish-fd/*.dll guncel/ -Force
+          Compress-Archive -Path guncel/* -DestinationPath VKM-guncel.zip -Force
       - name: Stabil indirme linki (latest release - her push'ta guncellenir)
         shell: bash
         run: |
-          gh release view latest >/dev/null 2>&1 || gh release create latest --title "VKM guncel (son derleme)" --notes "Her push'ta otomatik guncellenir. VeriKurtarmaMerkezi.dll = hizli guncelleme, VKM-hazir.zip = ilk kurulum."
-          gh release upload latest publish/VeriKurtarmaMerkezi.dll VKM-hazir.zip --clobber
+          gh release view latest >/dev/null 2>&1 || gh release create latest --title "VKM guncel (son derleme)" --notes "VKM-guncel.zip = guncelleme (klasore uzerine ac). VKM-hazir.zip = ilk kurulum. VeriKurtarmaMerkezi.dll = tek dosya (yeni kutuphane yoksa)."
+          gh release upload latest publish/VeriKurtarmaMerkezi.dll VKM-hazir.zip VKM-guncel.zip --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Artifact (yedek)
